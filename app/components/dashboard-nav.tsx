@@ -13,6 +13,14 @@ const navigation = [
     label: "Market Lab",
   },
   {
+    href: "/market-explorer",
+    label: "Explorer",
+  },
+  {
+    href: "/trade",
+    label: "Virtual Trade",
+  },
+  {
     href: "/risk",
     label: "Risk Lab",
   },

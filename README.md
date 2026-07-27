@@ -22,13 +22,25 @@ Aegis helps users practice a repeatable market-learning process:
 - Live BTC/USD, ETH/USD, and SOL/USD candlesticks with either provider
 - XAU/USD candlesticks with Twelve Data (shown as unavailable with Kraken)
 - Working 1m, 5m, 1h, and 1D timeframe controls
-- Thirty-second automatic refresh with visible connection and error states
+- Kraken WebSocket candle updates with a thirty-second REST fallback
+- Thirty-second polling for Twelve Data with visible connection and error states
 - Optional 20-period simple moving average
 - Working Positions, Orders, History, and Trade journal panels
 - Persistent personal watchlists for supported learning markets
 - Configurable educational price thresholds with pause and delete controls
 - Persistent learning-journal observations with edit and delete controls
 - Market, timeframe, risk, and later-reflection fields for each journal entry
+- Protected Market Explorer route with live chart controls and order-type glossary
+- Protected Virtual Trade route with live provider-sourced charts
+- Persistent virtual USD balance shared with the member dashboard
+- Virtual market buy, market sell, limit buy, and limit sell orders
+- Immediate chart refresh after virtual order actions
+- Buy/sell execution markers and pending-limit price lines on the chart
+- Server-priced Close Position action with automatic pending-sell cancellation
+- Limit-order virtual USD reservation, position reservation, fill, and cancellation
+- Persistent virtual positions, pending orders, execution history, and trade journal
+- Scrollable record panels with responsive tables and sticky headers
+- Selectable Virtual/Real environments with Real execution connection-gated
 - Market selector shared by the homepage and signed-in Market Lab
 - Virtual account balance
 - Virtual top-up and withdrawal flows
@@ -100,11 +112,13 @@ npm run start
 
 ```text
 app/
+  api/trade/      Authenticated virtual-order and account endpoint
   api/market/     Validated server-side market-data proxy
   components/     Live chart, selectors, tabs, and journal interface
   globals.css     Visual system, layout, animation, and responsive styles
   layout.tsx      Metadata and root layout
   page.tsx        Landing page and interactive prototype workspace
+  trade/          Protected virtual USD trading environment
 .openai/
   hosting.json    Sites project configuration
 README.md         Product, setup, release history, and roadmap
@@ -158,6 +172,29 @@ Before any real-money release, engage qualified legal and compliance professiona
 
 ## Release history
 
+### v0.3.6 — 2026-07-28
+
+- Added chart markers for filled virtual buys and sells.
+- Added horizontal chart lines for pending limit orders.
+- Added Kraken WebSocket OHLC updates with automatic reconnect and REST fallback.
+- Added an immediate chart refresh after place, cancel, and close actions.
+- Added a server-validated Close Position action using the latest provider price.
+- Added automatic cancellation of pending limit sells before a full position close.
+- Made the Real environment selectable with an explicit broker-connection state.
+- Kept real balances and order execution disabled until a specific regulated provider is integrated.
+
+### v0.3.5 — 2026-07-28
+
+- Added the protected `/trade` virtual trading environment.
+- Added a persistent virtual USD account balance for every user.
+- Added market buy, market sell, limit buy, and limit sell.
+- Added virtual positions, pending-order cancellation, execution history, and realized/unrealized P/L views.
+- Added automatic limit-order checks against server-fetched provider prices.
+- Added a persistent trade journal inside the trading workspace.
+- Added scrollable Positions, Orders, History, and Trade Journal panels.
+- Added a Virtual/Real selector while keeping Real trading disabled and disconnected.
+- Kept deposits, withdrawals, broker credentials, and real-money execution out of the project.
+
 ### v0.3.3 — 2026-07-28
 
 - Added database-backed learning-journal observations.
@@ -166,6 +203,13 @@ Before any real-money release, engage qualified legal and compliance professiona
 - Added edit and delete controls with per-user ownership checks.
 - Added a bounded, scrollable review history.
 - Kept the journal educational and disconnected from order execution.
+
+### v0.3.4 — 2026-07-28
+
+- Added a protected `/market-explorer` route linked from the member navigation.
+- Reused provider-sourced chart, market, timeframe, SMA, connection, and chart-journal controls.
+- Added a view-only order-type glossary for buy, sell, market order, and limit order terms.
+- Kept balances, virtual-order placement, and real trading unavailable on the new page.
 
 ### v0.3.2 — 2026-07-27
 

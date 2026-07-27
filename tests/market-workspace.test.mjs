@@ -17,6 +17,11 @@ const marketApiUrl = new URL(
   import.meta.url,
 );
 
+const marketDataUrl = new URL(
+  "../lib/market-data.ts",
+  import.meta.url,
+);
+
 const navigationUrl = new URL(
   "../app/components/dashboard-nav.tsx",
   import.meta.url,
@@ -42,24 +47,28 @@ test("market information is live, read-only, and educational", async () => {
   const pageSource = await readFile(marketPageUrl, "utf8");
   const terminalSource = await readFile(marketTerminalUrl, "utf8");
   const apiSource = await readFile(marketApiUrl, "utf8");
+  const providerSource = await readFile(marketDataUrl, "utf8");
+  const source = `${apiSource}\n${providerSource}`;
 
   assert.match(pageSource, /provider-sourced reference candles/i);
   assert.match(pageSource, /read-only/i);
-  assert.match(apiSource, /api\.kraken\.com\/0\/public\/OHLC/i);
-  assert.match(apiSource, /api\.twelvedata\.com\/time_series/i);
-  assert.match(apiSource, /MARKET_DATA_PROVIDER/);
-  assert.match(apiSource, /TWELVE_DATA_API_KEY/);
+  assert.match(source, /api\.kraken\.com\/0\/public\/OHLC/i);
+  assert.match(source, /api\.twelvedata\.com\/time_series/i);
+  assert.match(source, /MARKET_DATA_PROVIDER/);
+  assert.match(source, /TWELVE_DATA_API_KEY/);
   assert.match(terminalSource, /availableSymbols/);
   assert.match(terminalSource, /Unavailable/);
 });
 
 test("Kraken disables gold while Twelve Data can provide it", async () => {
   const apiSource = await readFile(marketApiUrl, "utf8");
+  const providerSource = await readFile(marketDataUrl, "utf8");
   const terminalSource = await readFile(marketTerminalUrl, "utf8");
+  const source = `${apiSource}\n${providerSource}`;
 
-  assert.match(apiSource, /krakenSymbols/);
-  assert.match(apiSource, /Gold is unavailable while Kraken is selected/);
-  assert.match(apiSource, /provider === "kraken" \? krakenSymbols : allSymbols/);
+  assert.match(source, /krakenPairs/);
+  assert.match(source, /Gold is unavailable while Kraken is selected/);
+  assert.match(source, /provider === "kraken"/);
   assert.match(terminalSource, /disabled=/);
   assert.match(terminalSource, /availableSymbols\.includes\(market\.key\)/);
 });

@@ -10,6 +10,7 @@ const layoutUrl = new URL(
 const pageUrls = [
   new URL("../app/dashboard/page.tsx", import.meta.url),
   new URL("../app/market/page.tsx", import.meta.url),
+  new URL("../app/market-explorer/page.tsx", import.meta.url),
   new URL("../app/risk/page.tsx", import.meta.url),
 ];
 
@@ -47,5 +48,6 @@ test("individual pages still enforce authentication", async () => {
 
   assert.match(sources[0], /requireUser\("\/dashboard"\)/);
   assert.match(sources[1], /requireUser\("\/market"\)/);
-  assert.match(sources[2], /requireUser\("\/risk"\)/);
+  assert.match(sources[2], /requireUser\("\/market-explorer"\)/);
+  assert.match(sources[3], /requireUser\("\/risk"\)/);
 });

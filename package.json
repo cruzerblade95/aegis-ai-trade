@@ -1,6 +1,6 @@
 {
   "name": "aegis-ai-trade",
-  "version": "0.3.3",
+  "version": "0.3.6",
   "private": true,
   "engines": {
     "node": ">=22.13.0"

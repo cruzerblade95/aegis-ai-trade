@@ -3,10 +3,15 @@
 import {
   CandlestickSeries,
   ColorType,
+  LineStyle,
   LineSeries,
   createChart,
+  createSeriesMarkers,
   type IChartApi,
+  type IPriceLine,
   type ISeriesApi,
+  type ISeriesMarkersPluginApi,
+  type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -19,7 +24,15 @@ export const liveMarkets = [
 ] as const;
 
 export type MarketKey = (typeof liveMarkets)[number]["key"];
-type Interval = "1min" | "5min" | "1h" | "1day";
+export type LiveMarketInterval = "1min" | "5min" | "1h" | "1day";
+export type TradeChartOrder = {
+  id: string;
+  side: "buy" | "sell";
+  status: "filled" | "pending";
+  price: number;
+  quantity: number;
+  time: number;
+};
 type WorkspaceTab = "positions" | "orders" | "history" | "journal";
 
 type Candle = {
@@ -41,9 +54,22 @@ type CandleResponse = {
   unavailable?: boolean;
 };
 
+type KrakenOhlcMessage = {
+  channel?: string;
+  data?: Array<{
+    close?: number;
+    high?: number;
+    interval_begin?: string;
+    low?: number;
+    open?: number;
+    symbol?: string;
+  }>;
+  type?: string;
+};
+
 const timeframeOptions: Array<{
   label: string;
-  value: Interval;
+  value: LiveMarketInterval;
 }> = [
   { label: "1m", value: "1min" },
   { label: "5m", value: "5min" },
@@ -68,6 +94,12 @@ export function LiveMarketTerminal({
   selectedKey,
   onMarketChange,
   onAvailabilityChange,
+  onQuoteChange,
+  paperPillLabel = "READ ONLY",
+  refreshToken = 0,
+  showLearningBalance = true,
+  showWorkspaceTabs = true,
+  tradeOrders = [],
 }: {
   balance?: number;
   compact?: boolean;
@@ -75,6 +107,20 @@ export function LiveMarketTerminal({
   selectedKey: MarketKey;
   onMarketChange: (market: MarketKey) => void;
   onAvailabilityChange?: (markets: MarketKey[]) => void;
+  onQuoteChange?: (
+    quote: {
+      fetchedAt: string;
+      interval: LiveMarketInterval;
+      price: number;
+      source: string;
+      symbol: MarketKey;
+    } | null,
+  ) => void;
+  paperPillLabel?: string;
+  refreshToken?: number;
+  showLearningBalance?: boolean;
+  showWorkspaceTabs?: boolean;
+  tradeOrders?: TradeChartOrder[];
 }) {
   const chartContainerRef = useRef<HTMLDivElement>(null);
   const chartRef = useRef<IChartApi | null>(null);
@@ -82,9 +128,13 @@ export function LiveMarketTerminal({
     useRef<ISeriesApi<"Candlestick"> | null>(null);
   const averageSeriesRef =
     useRef<ISeriesApi<"Line"> | null>(null);
+  const markerPluginRef =
+    useRef<ISeriesMarkersPluginApi<Time> | null>(null);
+  const limitPriceLinesRef = useRef<IPriceLine[]>([]);
   const fitNextDataRef = useRef(true);
 
-  const [interval, setInterval] = useState<Interval>("5min");
+  const [interval, setInterval] =
+    useState<LiveMarketInterval>("5min");
   const [activeTab, setActiveTab] =
     useState<WorkspaceTab>("positions");
   const [showAverage, setShowAverage] = useState(false);
@@ -94,6 +144,9 @@ export function LiveMarketTerminal({
   const [error, setError] = useState<string | null>(null);
   const [fetchedAt, setFetchedAt] = useState<string | null>(null);
   const [source, setSource] = useState<string | null>(null);
+  const [provider, setProvider] =
+    useState<"kraken" | "twelve_data" | null>(null);
+  const [streamConnected, setStreamConnected] = useState(false);
   const [availableSymbols, setAvailableSymbols] =
     useState<MarketKey[] | null>(null);
   const [viewHistory, setViewHistory] = useState<string[]>([]);
@@ -152,15 +205,20 @@ export function LiveMarketTerminal({
       lineWidth: 2,
       visible: false,
     });
+    const markerPlugin = createSeriesMarkers(candleSeries, []);
 
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     averageSeriesRef.current = averageSeries;
+    markerPluginRef.current = markerPlugin;
 
     return () => {
+      markerPlugin.detach();
       chartRef.current = null;
       candleSeriesRef.current = null;
       averageSeriesRef.current = null;
+      markerPluginRef.current = null;
+      limitPriceLinesRef.current = [];
       chart.remove();
     };
   }, [compact]);
@@ -191,6 +249,76 @@ export function LiveMarketTerminal({
       visible: showAverage,
     });
   }, [showAverage]);
+
+  useEffect(() => {
+    const candleSeries = candleSeriesRef.current;
+    const markerPlugin = markerPluginRef.current;
+
+    if (!candleSeries || !markerPlugin) {
+      return;
+    }
+
+    for (const priceLine of limitPriceLinesRef.current) {
+      candleSeries.removePriceLine(priceLine);
+    }
+    limitPriceLinesRef.current = [];
+
+    if (candles.length === 0) {
+      markerPlugin.setMarkers([]);
+      return;
+    }
+
+    const markers = tradeOrders
+      .filter((order) => order.status === "filled")
+      .flatMap((order) => {
+        const time = nearestVisibleCandleTime(candles, order.time);
+
+        if (time === null) {
+          return [];
+        }
+
+        return [
+          {
+            color: order.side === "buy" ? "#36e6ae" : "#ff5d63",
+            position:
+              order.side === "buy"
+                ? ("belowBar" as const)
+                : ("aboveBar" as const),
+            shape:
+              order.side === "buy"
+                ? ("arrowUp" as const)
+                : ("arrowDown" as const),
+            text: `${order.side.toUpperCase()} ${formatMarkerQuantity(
+              order.quantity,
+            )} @ ${formatMarkerPrice(order.price)}`,
+            time: time as UTCTimestamp,
+          },
+        ];
+      })
+      .sort((left, right) => Number(left.time) - Number(right.time));
+
+    markerPlugin.setMarkers(markers);
+
+    limitPriceLinesRef.current = tradeOrders
+      .filter(
+        (order) =>
+          order.status === "pending" &&
+          Number.isFinite(order.price) &&
+          order.price > 0,
+      )
+      .map((order) =>
+        candleSeries.createPriceLine({
+          axisLabelVisible: true,
+          color: order.side === "buy" ? "#36e6ae" : "#ff5d63",
+          lineStyle: LineStyle.Dashed,
+          lineWidth: 1,
+          price: order.price,
+          title: `${order.side.toUpperCase()} LIMIT ${formatMarkerQuantity(
+            order.quantity,
+          )}`,
+        }),
+      );
+  }, [candles, tradeOrders]);
 
   useEffect(() => {
     let active = true;
@@ -231,6 +359,9 @@ export function LiveMarketTerminal({
 
         if (data.source) {
           setSource(data.source);
+        }
+        if (data.provider) {
+          setProvider(data.provider);
         }
 
         if (!response.ok || !data.candles) {
@@ -283,9 +414,111 @@ export function LiveMarketTerminal({
   }, [
     interval,
     onAvailabilityChange,
+    refreshToken,
     selectedKey,
     selectedMarket.label,
   ]);
+
+  useEffect(() => {
+    if (
+      provider !== "kraken" ||
+      selectedKey === "XAUUSD" ||
+      typeof WebSocket === "undefined"
+    ) {
+      return;
+    }
+
+    let active = true;
+    let socket: WebSocket | null = null;
+    let reconnectTimer: number | null = null;
+
+    function connect() {
+      if (!active) {
+        return;
+      }
+
+      socket = new WebSocket("wss://ws.kraken.com/v2");
+
+      socket.addEventListener("open", () => {
+        if (!active || !socket) {
+          return;
+        }
+
+        setStreamConnected(true);
+        socket.send(
+          JSON.stringify({
+            method: "subscribe",
+            params: {
+              channel: "ohlc",
+              interval: krakenStreamInterval(interval),
+              snapshot: false,
+              symbol: [selectedMarket.label],
+            },
+            req_id: 1,
+          }),
+        );
+      });
+
+      socket.addEventListener("message", (event) => {
+        if (!active || typeof event.data !== "string") {
+          return;
+        }
+
+        try {
+          const message = JSON.parse(event.data) as KrakenOhlcMessage;
+
+          if (message.channel !== "ohlc" || !message.data) {
+            return;
+          }
+
+          for (const update of message.data) {
+            const candle = parseKrakenStreamCandle(update);
+
+            if (
+              !candle ||
+              (update.symbol &&
+                update.symbol !== selectedMarket.label)
+            ) {
+              continue;
+            }
+
+            setCandles((current) =>
+              mergeStreamingCandle(current, candle),
+            );
+            setFetchedAt(new Date().toISOString());
+            setSource("Kraken WebSocket");
+          }
+        } catch {
+          // Ignore malformed stream frames and keep the REST fallback active.
+        }
+      });
+
+      socket.addEventListener("error", () => {
+        setStreamConnected(false);
+      });
+
+      socket.addEventListener("close", () => {
+        setStreamConnected(false);
+
+        if (active) {
+          reconnectTimer = window.setTimeout(connect, 5_000);
+        }
+      });
+    }
+
+    connect();
+
+    return () => {
+      active = false;
+      setStreamConnected(false);
+
+      if (reconnectTimer !== null) {
+        window.clearTimeout(reconnectTimer);
+      }
+
+      socket?.close();
+    };
+  }, [interval, provider, selectedKey, selectedMarket.label]);
 
   const latest = candles.at(-1);
   const previous = candles.at(-2);
@@ -300,7 +533,32 @@ export function LiveMarketTerminal({
       ? "Connecting"
       : refreshing
         ? "Refreshing"
+        : streamConnected
+          ? "Live stream connected"
         : "Live data connected";
+
+  useEffect(() => {
+    if (!latest || !fetchedAt || error) {
+      onQuoteChange?.(null);
+      return;
+    }
+
+    onQuoteChange?.({
+      fetchedAt,
+      interval,
+      price: latest.close,
+      source: source ?? "Live provider",
+      symbol: selectedKey,
+    });
+  }, [
+    error,
+    fetchedAt,
+    interval,
+    latest,
+    onQuoteChange,
+    selectedKey,
+    source,
+  ]);
 
   const journalPlaceholder = useMemo(
     () =>
@@ -358,12 +616,14 @@ export function LiveMarketTerminal({
           <small>{selectedMarket.name}</small>
         </label>
 
-        <span className="paper-pill">READ ONLY</span>
+        <span className="paper-pill">{paperPillLabel}</span>
 
-        <div className="mini-balance">
-          <small>Virtual learning balance</small>
-          <b>{balance.toLocaleString()} USD</b>
-        </div>
+        {showLearningBalance && (
+          <div className="mini-balance">
+            <small>Virtual learning balance</small>
+            <b>{balance.toLocaleString()} USD</b>
+          </div>
+        )}
       </div>
 
       <div className="chart-controls">
@@ -445,95 +705,103 @@ export function LiveMarketTerminal({
         )}
       </div>
 
-      <div
-        aria-label="Market workspace panels"
-        className="terminal-tabs"
-        role="tablist"
-      >
-        {tabOptions.map((tab) => (
-          <button
-            aria-controls={`terminal-panel-${tab.value}`}
-            aria-selected={activeTab === tab.value}
-            className={activeTab === tab.value ? "active" : undefined}
-            id={`terminal-tab-${tab.value}`}
-            key={tab.value}
-            onClick={() => setActiveTab(tab.value)}
-            role="tab"
-            type="button"
+      {showWorkspaceTabs && (
+        <>
+          <div
+            aria-label="Market workspace panels"
+            className="terminal-tabs"
+            role="tablist"
           >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+            {tabOptions.map((tab) => (
+              <button
+                aria-controls={`terminal-panel-${tab.value}`}
+                aria-selected={activeTab === tab.value}
+                className={
+                  activeTab === tab.value ? "active" : undefined
+                }
+                id={`terminal-tab-${tab.value}`}
+                key={tab.value}
+                onClick={() => setActiveTab(tab.value)}
+                role="tab"
+                type="button"
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-      <div
-        aria-labelledby={`terminal-tab-${activeTab}`}
-        className="terminal-tab-panel"
-        id={`terminal-panel-${activeTab}`}
-        role="tabpanel"
-      >
-        {activeTab === "positions" && (
-          <TerminalEmptyState
-            action={onOpen}
-            actionLabel="Open full terminal"
-            description="This read-only workspace does not open or execute market positions."
-            icon="⌁"
-            title="No open educational positions"
-          />
-        )}
+          <div
+            aria-labelledby={`terminal-tab-${activeTab}`}
+            className="terminal-tab-panel"
+            id={`terminal-panel-${activeTab}`}
+            role="tabpanel"
+          >
+            {activeTab === "positions" && (
+              <TerminalEmptyState
+                action={onOpen}
+                actionLabel="Open full terminal"
+                description="This read-only workspace does not open or execute market positions."
+                icon="⌁"
+                title="No open educational positions"
+              />
+            )}
 
-        {activeTab === "orders" && (
-          <TerminalEmptyState
-            description="Order entry is intentionally disabled. Use the chart to study price movement without placing trades."
-            icon="▤"
-            title="No executable orders"
-          />
-        )}
+            {activeTab === "orders" && (
+              <TerminalEmptyState
+                description="Order entry is intentionally disabled. Use the chart to study price movement without placing trades."
+                icon="▤"
+                title="No executable orders"
+              />
+            )}
 
-        {activeTab === "history" && (
-          <div className="terminal-history">
-            <b>Recently viewed charts</b>
-            {viewHistory.length > 0 ? (
-              <ul>
-                {viewHistory.map((entry) => (
-                  <li key={entry}>{entry}</li>
-                ))}
-              </ul>
-            ) : (
-              <small>Your viewed markets will appear here.</small>
+            {activeTab === "history" && (
+              <div className="terminal-history">
+                <b>Recently viewed charts</b>
+                {viewHistory.length > 0 ? (
+                  <ul>
+                    {viewHistory.map((entry) => (
+                      <li key={entry}>{entry}</li>
+                    ))}
+                  </ul>
+                ) : (
+                  <small>Your viewed markets will appear here.</small>
+                )}
+              </div>
+            )}
+
+            {activeTab === "journal" && (
+              <div className="terminal-journal">
+                <label htmlFor={`journal-${compact ? "compact" : "full"}`}>
+                  Chart observation
+                </label>
+                <textarea
+                  id={`journal-${compact ? "compact" : "full"}`}
+                  onChange={(event) =>
+                    setJournalDraft(event.target.value)
+                  }
+                  placeholder={journalPlaceholder}
+                  value={journalDraft}
+                />
+                <button
+                  className="button secondary"
+                  disabled={!journalDraft.trim()}
+                  onClick={saveJournalNote}
+                  type="button"
+                >
+                  Save observation
+                </button>
+                {journalNotes.length > 0 && (
+                  <ul>
+                    {journalNotes.map((note, index) => (
+                      <li key={`${note}-${index}`}>{note}</li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             )}
           </div>
-        )}
-
-        {activeTab === "journal" && (
-          <div className="terminal-journal">
-            <label htmlFor={`journal-${compact ? "compact" : "full"}`}>
-              Chart observation
-            </label>
-            <textarea
-              id={`journal-${compact ? "compact" : "full"}`}
-              onChange={(event) => setJournalDraft(event.target.value)}
-              placeholder={journalPlaceholder}
-              value={journalDraft}
-            />
-            <button
-              className="button secondary"
-              disabled={!journalDraft.trim()}
-              onClick={saveJournalNote}
-              type="button"
-            >
-              Save observation
-            </button>
-            {journalNotes.length > 0 && (
-              <ul>
-                {journalNotes.map((note, index) => (
-                  <li key={`${note}-${index}`}>{note}</li>
-                ))}
-              </ul>
-            )}
-          </div>
-        )}
-      </div>
+        </>
+      )}
 
       <div className="terminal-attribution">
         Real reference data may be delayed. Charts powered by{" "}
@@ -583,6 +851,106 @@ function TerminalEmptyState({
   );
 }
 
+function nearestVisibleCandleTime(
+  candles: Candle[],
+  timestampMs: number,
+): number | null {
+  if (candles.length === 0 || !Number.isFinite(timestampMs)) {
+    return null;
+  }
+
+  const timestamp = Math.floor(timestampMs / 1000);
+  const first = candles[0].time;
+  const last = candles[candles.length - 1].time;
+  const lastCandleGap =
+    candles.length > 1
+      ? Math.max(60, last - candles[candles.length - 2].time)
+      : 86_400;
+
+  if (
+    timestamp < first - lastCandleGap ||
+    timestamp > last + lastCandleGap
+  ) {
+    return null;
+  }
+
+  let nearest = candles[0].time;
+  let distance = Math.abs(nearest - timestamp);
+
+  for (const candle of candles) {
+    const nextDistance = Math.abs(candle.time - timestamp);
+
+    if (nextDistance < distance) {
+      nearest = candle.time;
+      distance = nextDistance;
+    }
+  }
+
+  return nearest;
+}
+
+function formatMarkerQuantity(value: number): string {
+  return value.toLocaleString("en-US", {
+    maximumFractionDigits: 6,
+  });
+}
+
+function formatMarkerPrice(value: number): string {
+  return `$${value.toLocaleString("en-US", {
+    maximumFractionDigits: 2,
+    minimumFractionDigits: 2,
+  })}`;
+}
+
+function krakenStreamInterval(
+  interval: LiveMarketInterval,
+): number {
+  if (interval === "1min") return 1;
+  if (interval === "5min") return 5;
+  if (interval === "1h") return 60;
+  return 1_440;
+}
+
+function parseKrakenStreamCandle(
+  update: NonNullable<KrakenOhlcMessage["data"]>[number],
+): Candle | null {
+  const time = update.interval_begin
+    ? Math.floor(Date.parse(update.interval_begin) / 1000)
+    : Number.NaN;
+  const candle = {
+    time,
+    open: Number(update.open),
+    high: Number(update.high),
+    low: Number(update.low),
+    close: Number(update.close),
+  };
+
+  return Object.values(candle).every(
+    (value) => Number.isFinite(value) && value > 0,
+  )
+    ? candle
+    : null;
+}
+
+function mergeStreamingCandle(
+  candles: Candle[],
+  update: Candle,
+): Candle[] {
+  const existingIndex = candles.findIndex(
+    (candle) => candle.time === update.time,
+  );
+
+  if (existingIndex >= 0) {
+    const next = [...candles];
+    next[existingIndex] = update;
+    return next;
+  }
+
+  return [...candles, update]
+    .sort((left, right) => left.time - right.time)
+    .slice(-720);
+}
+
 function formatPrice(value: number | undefined, decimals: number) {
   return value === undefined
     ? "—"
@@ -592,7 +960,7 @@ function formatPrice(value: number | undefined, decimals: number) {
       });
 }
 
-function timeframeLabel(interval: Interval) {
+function timeframeLabel(interval: LiveMarketInterval) {
   return (
     timeframeOptions.find((option) => option.value === interval)?.label ??
     interval

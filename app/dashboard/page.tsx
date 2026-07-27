@@ -92,7 +92,7 @@ export default async function DashboardPage() {
 
           <article className="dashboard-card dashboard-card-primary">
             <span className="dashboard-card-label">
-              VIRTUAL LEARNING BALANCE
+              VIRTUAL USD BALANCE
             </span>
 
             <h2>
@@ -103,13 +103,13 @@ export default async function DashboardPage() {
             </h2>
 
             <p>
-              Simulation credits only. This balance cannot be
-              deposited, withdrawn, exchanged, or converted into
-              real money.
+              Use this simulated USD balance in the Virtual Trade
+              environment. It cannot be deposited, withdrawn, or
+              converted into real money.
             </p>
 
             <div className="dashboard-card-footer">
-              <span>Currency</span>
+              <Link href="/trade">Open Virtual Trade</Link>
               <strong>{wallet.currency}</strong>
             </div>
           </article>

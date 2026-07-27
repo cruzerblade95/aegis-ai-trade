@@ -325,6 +325,102 @@ export const paperTrades = sqliteTable(
 );
 
 /**
+ * Persistent orders in the virtual USD environment.
+ *
+ * These records never leave Aegis and are not connected to a broker.
+ */
+export const virtualTradeOrders = sqliteTable(
+  "virtual_trade_orders",
+  {
+    id: text("id").primaryKey(),
+
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, {
+        onDelete: "cascade",
+      }),
+
+    marketSymbol: text("market_symbol").notNull(),
+
+    side: text("side", {
+      enum: ["buy", "sell"],
+    }).notNull(),
+
+    orderType: text("order_type", {
+      enum: ["market", "limit"],
+    }).notNull(),
+
+    quantity: text("quantity").notNull(),
+    limitPrice: text("limit_price"),
+    executedPrice: text("executed_price"),
+    quoteAmountMinor: integer("quote_amount_minor"),
+    reservedQuoteMinor: integer("reserved_quote_minor")
+      .notNull()
+      .default(0),
+
+    status: text("status", {
+      enum: ["pending", "filled", "cancelled", "rejected"],
+    })
+      .notNull()
+      .default("pending"),
+
+    createdAt: createdAt(),
+    filledAt: integer("filled_at", {
+      mode: "timestamp_ms",
+    }),
+    cancelledAt: integer("cancelled_at", {
+      mode: "timestamp_ms",
+    }),
+  },
+  (table) => [
+    index("virtual_trade_orders_user_status_idx").on(
+      table.userId,
+      table.status,
+      table.createdAt,
+    ),
+    index("virtual_trade_orders_market_status_idx").on(
+      table.marketSymbol,
+      table.status,
+      table.createdAt,
+    ),
+  ],
+);
+
+/**
+ * Per-user holdings created only by filled virtual orders.
+ */
+export const virtualTradePositions = sqliteTable(
+  "virtual_trade_positions",
+  {
+    userId: text("user_id")
+      .notNull()
+      .references(() => users.id, {
+        onDelete: "cascade",
+      }),
+
+    marketSymbol: text("market_symbol").notNull(),
+    quantity: text("quantity").notNull().default("0"),
+    averageEntryPrice: text("average_entry_price")
+      .notNull()
+      .default("0"),
+    realizedPnlMinor: integer("realized_pnl_minor")
+      .notNull()
+      .default(0),
+    updatedAt: updatedAt(),
+  },
+  (table) => [
+    uniqueIndex("virtual_trade_positions_user_market_unique").on(
+      table.userId,
+      table.marketSymbol,
+    ),
+    index("virtual_trade_positions_user_idx").on(
+      table.userId,
+      table.updatedAt,
+    ),
+  ],
+);
+
+/**
  * Learning journal attached to optional paper trades.
  */
 export const tradeJournalEntries = sqliteTable(
