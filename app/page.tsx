@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { HomeAuthActions } from "./components/home-auth-actions";
 
 type View = "home" | "terminal" | "plans" | "academy" | "admin";
 type Modal = "funds" | "withdraw" | null;
@@ -130,11 +131,7 @@ export default function Home() {
           <button onClick={() => navigate("plans")}>Plans</button>
           <button onClick={() => navigate("academy")}>Academy</button>
         </nav>
-        <div className="nav-actions">
-          <button className="icon-button" aria-label="Toggle appearance">☼</button>
-          <button className="language">◎ EN⌄</button>
-          <button className="button ghost" onClick={() => { navigate("terminal"); setToast("Practice account opened."); }}>Open practice app</button>
-        </div>
+        <HomeAuthActions />
       </header>
 
       <section className="ticker" aria-label="Simulated market ticker">
