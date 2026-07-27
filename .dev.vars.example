@@ -1,3 +1,8 @@
 # Comma-separated email addresses allowed to access the admin dashboard.
 # This file contains examples only and is safe to commit.
 AEGIS_ADMIN_EMAILS=admin@example.com
+# You can choose kraken or twelve_data
+MARKET_DATA_PROVIDER=kraken
+
+# Required only when MARKET_DATA_PROVIDER=twelve_data
+TWELVE_DATA_API_KEY=replace_with_your_twelve_data_key

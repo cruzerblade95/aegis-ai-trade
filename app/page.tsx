@@ -1,26 +1,15 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { HomeAuthActions } from "./components/home-auth-actions";
+import {
+  LiveMarketTerminal,
+  liveMarkets,
+  type MarketKey,
+} from "./components/live-market-terminal";
 
 type View = "home" | "terminal" | "plans" | "academy" | "admin";
 type Modal = "funds" | "withdraw" | null;
-
-const markets = [
-  { symbol: "EUR/USD", name: "Euro / U.S. Dollar", price: 1.09342, change: 0.21 },
-  { symbol: "GBP/USD", name: "British Pound / U.S. Dollar", price: 1.27485, change: -0.24 },
-  { symbol: "USD/JPY", name: "U.S. Dollar / Japanese Yen", price: 155.682, change: 0.3 },
-  { symbol: "XAU/USD", name: "Gold / U.S. Dollar", price: 2354.71, change: 0.37 },
-  { symbol: "NAS100", name: "Nasdaq 100 Index", price: 18732.45, change: -0.12 },
-];
-
-const seedSeries: Record<string, number[]> = {
-  "EUR/USD": [41, 37, 45, 39, 34, 42, 47, 43, 50, 58, 53, 61, 57, 49, 55, 63, 69, 64, 72, 66, 75, 70, 78, 82, 74, 68, 72, 61, 55, 58],
-  "GBP/USD": [59, 63, 57, 52, 48, 54, 45, 49, 43, 39, 44, 35, 41, 38, 31, 36, 29, 34, 26, 32, 28, 23, 29, 24, 20, 26, 21, 18, 23, 19],
-  "USD/JPY": [35, 38, 42, 40, 47, 45, 52, 49, 56, 61, 58, 66, 63, 69, 65, 73, 70, 76, 72, 79, 75, 82, 78, 84, 80, 87, 83, 89, 86, 92],
-  "XAU/USD": [38, 45, 42, 49, 47, 55, 51, 58, 53, 62, 59, 66, 63, 70, 67, 74, 69, 78, 73, 82, 77, 85, 81, 88, 84, 91, 87, 94, 90, 96],
-  NAS100: [52, 48, 55, 50, 58, 53, 61, 56, 64, 59, 67, 63, 70, 66, 74, 69, 77, 72, 80, 75, 83, 78, 86, 81, 89, 84, 92, 87, 94, 90],
-};
 
 const plans = [
   { name: "Explorer", price: 0, tone: "cyan", features: ["Live simulated charts", "3 AI explanations / day", "Practice journal"] },
@@ -35,14 +24,6 @@ const users = [
   { name: "Daniel Tan", email: "daniel@example.test", plan: "Analyst", status: "Paused", balance: "$88,310" },
 ];
 
-function Sparkline({ positive }: { positive: boolean }) {
-  return (
-    <span className={`spark ${positive ? "positive" : "negative"}`} aria-hidden="true">
-      <i /><i /><i /><i /><i /><i /><i />
-    </span>
-  );
-}
-
 function Logo() {
   return (
     <button className="brand" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Aegis AI Trade home">
@@ -54,8 +35,11 @@ function Logo() {
 
 export default function Home() {
   const [view, setView] = useState<View>("home");
-  const [selected, setSelected] = useState(markets[0]);
-  const [series, setSeries] = useState(seedSeries["EUR/USD"]);
+  const [selectedKey, setSelectedKey] =
+    useState<(typeof liveMarkets)[number]["key"]>("BTCUSD");
+  const [availableSymbols, setAvailableSymbols] = useState<
+    MarketKey[] | null
+  >(null);
   const [balance, setBalance] = useState(100000);
   const [activePlan, setActivePlan] = useState("Explorer");
   const [modal, setModal] = useState<Modal>(null);
@@ -64,36 +48,10 @@ export default function Home() {
   const [adminFilter, setAdminFilter] = useState("All");
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      setSeries((current) => {
-        const last = current[current.length - 1];
-        const next = Math.max(10, Math.min(96, last + (Math.random() - 0.47) * 13));
-        return [...current.slice(1), next];
-      });
-    }, 1400);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  useEffect(() => {
     if (!toast) return;
     const timer = window.setTimeout(() => setToast(""), 3200);
     return () => window.clearTimeout(timer);
   }, [toast]);
-
-  const chartPath = useMemo(
-    () => series.map((value, index) => `${index === 0 ? "M" : "L"} ${index * (720 / (series.length - 1))} ${210 - value * 1.85}`).join(" "),
-    [series],
-  );
-
-  const displayPrice = useMemo(() => {
-    const movement = (series[series.length - 1] - 50) * (selected.price < 10 ? 0.00002 : selected.price < 1000 ? 0.003 : 0.16);
-    return selected.price + movement;
-  }, [selected, series]);
-
-  function selectMarket(market: typeof markets[number]) {
-    setSelected(market);
-    setSeries(seedSeries[market.symbol]);
-  }
 
   function navigate(next: View) {
     setView(next);
@@ -134,13 +92,34 @@ export default function Home() {
         <HomeAuthActions />
       </header>
 
-      <section className="ticker" aria-label="Simulated market ticker">
+      <section className="ticker" aria-label="Live market shortcuts">
         <div className="ticker-track">
-          {[...markets, ...markets].map((market, index) => (
-            <button key={`${market.symbol}-${index}`} onClick={() => { selectMarket(market); navigate("terminal"); }}>
-              <span><b>{market.symbol}</b><small>{market.price.toLocaleString(undefined, { maximumFractionDigits: 5 })}</small></span>
-              <span className={market.change > 0 ? "up" : "down"}>{market.change > 0 ? "+" : ""}{market.change}%</span>
-              <Sparkline positive={market.change > 0} />
+          {[...liveMarkets, ...liveMarkets].map((market, index) => (
+            <button
+              aria-disabled={
+                availableSymbols !== null &&
+                !availableSymbols.includes(market.key)
+              }
+              disabled={
+                availableSymbols !== null &&
+                !availableSymbols.includes(market.key)
+              }
+              key={`${market.key}-${index}`}
+              onClick={() => {
+                setSelectedKey(market.key);
+                navigate("terminal");
+              }}
+            >
+              <span>
+                <b>{market.label}</b>
+                <small>{market.name}</small>
+              </span>
+              <span className="ticker-live">
+                {availableSymbols !== null &&
+                !availableSymbols.includes(market.key)
+                  ? "Unavailable with selected provider"
+                  : "Open live chart →"}
+              </span>
             </button>
           ))}
         </div>
@@ -164,7 +143,14 @@ export default function Home() {
               </div>
               <p className="fine-print">ⓘ No real funds. No brokerage execution. No guaranteed returns.</p>
             </div>
-            <TerminalCard selected={selected} setSelected={selectMarket} chartPath={chartPath} displayPrice={displayPrice} balance={balance} compact onOpen={() => navigate("terminal")} />
+            <LiveMarketTerminal
+              balance={balance}
+              compact
+              onAvailabilityChange={setAvailableSymbols}
+              onMarketChange={setSelectedKey}
+              onOpen={() => navigate("terminal")}
+              selectedKey={selectedKey}
+            />
           </section>
 
           <section className="feature-section">
@@ -208,7 +194,12 @@ export default function Home() {
                   </div>
                 </div>
                 <div className="terminal-layout">
-                  <TerminalCard selected={selected} setSelected={selectMarket} chartPath={chartPath} displayPrice={displayPrice} balance={balance} />
+                  <LiveMarketTerminal
+                    balance={balance}
+                    onAvailabilityChange={setAvailableSymbols}
+                    onMarketChange={setSelectedKey}
+                    selectedKey={selectedKey}
+                  />
                   <aside className="insight-panel">
                     <div className="panel-title"><span>✦</span><b>AI Risk Insight</b><small>Educational</small></div>
                     <div className="insight-score"><span>72</span><div><b>Moderate volatility</b><small>Based on this simulation window</small></div></div>
@@ -282,7 +273,7 @@ export default function Home() {
 
       <footer>
         <Logo />
-        <p>Educational paper-trading prototype. Market data is simulated and delayed.</p>
+        <p>Educational market-learning prototype. Reference data may be delayed.</p>
         <div><button onClick={() => navigate("academy")}>Risk disclosure</button><button onClick={() => navigate("admin")}>Admin demo</button><span>© 2026 Aegis</span></div>
       </footer>
 
@@ -301,57 +292,5 @@ export default function Home() {
       )}
       {toast && <div className="toast" role="status"><span>✓</span>{toast}</div>}
     </main>
-  );
-}
-
-function TerminalCard({
-  selected,
-  setSelected,
-  chartPath,
-  displayPrice,
-  balance,
-  compact = false,
-  onOpen,
-}: {
-  selected: typeof markets[number];
-  setSelected: (market: typeof markets[number]) => void;
-  chartPath: string;
-  displayPrice: number;
-  balance: number;
-  compact?: boolean;
-  onOpen?: () => void;
-}) {
-  return (
-    <section className={`terminal-card ${compact ? "compact" : ""}`}>
-      <div className="terminal-top">
-        <label>
-          <span className="asset-dot">{selected.symbol.slice(0, 2)}</span>
-          <select value={selected.symbol} onChange={(event) => setSelected(markets.find((market) => market.symbol === event.target.value) ?? markets[0])}>
-            {markets.map((market) => <option key={market.symbol}>{market.symbol}</option>)}
-          </select>
-          <small>{selected.name}</small>
-        </label>
-        <span className="paper-pill">PAPER</span>
-        <div className="mini-balance"><small>Virtual balance</small><b>{balance.toLocaleString()} USD</b></div>
-      </div>
-      <div className="chart-controls">
-        <div>{["1m", "5m", "15m", "1H", "4H", "1D"].map((time) => <button className={time === "15m" ? "active" : ""} key={time}>{time}</button>)}</div>
-        <button>Indicators⌄</button>
-        <span>│⌁ ⛶</span>
-      </div>
-      <div className="ohlc"><span>O {displayPrice.toFixed(selected.price < 10 ? 5 : 2)}</span><span>H {(displayPrice * 1.0014).toFixed(selected.price < 10 ? 5 : 2)}</span><span>L {(displayPrice * .9988).toFixed(selected.price < 10 ? 5 : 2)}</span><span className="up">C {displayPrice.toFixed(selected.price < 10 ? 5 : 2)} +0.02%</span></div>
-      <div className="chart">
-        <div className="grid-lines" />
-        <svg viewBox="0 0 720 220" preserveAspectRatio="none" role="img" aria-label={`${selected.symbol} continuously updating simulated price chart`}>
-          <defs><linearGradient id="chartFill" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stopColor="#21e7b0" stopOpacity=".35" /><stop offset="1" stopColor="#21e7b0" stopOpacity="0" /></linearGradient></defs>
-          <path className="area" d={`${chartPath} L 720 220 L 0 220 Z`} />
-          <path className="line" d={chartPath} />
-        </svg>
-        <div className="live-price" style={{ top: `${Math.max(18, Math.min(184, 210 - (displayPrice / selected.price) * 98))}px` }}>{displayPrice.toFixed(selected.price < 10 ? 5 : 2)}</div>
-        <span className="live-label"><i /> LIVE SIMULATION</span>
-      </div>
-      <div className="terminal-tabs"><button className="active">Positions</button><button>Orders</button><button>History</button><button>Trade journal</button></div>
-      <div className="empty-state"><span>⌁</span><div><b>No open practice positions</b><small>Explore market movement before recording an idea.</small></div>{onOpen && <button className="button secondary" onClick={onOpen}>Open terminal</button>}</div>
-    </section>
   );
 }

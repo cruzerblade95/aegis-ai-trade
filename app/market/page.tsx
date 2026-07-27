@@ -1,10 +1,6 @@
 import { requireUser } from "../auth/session";
 import { ProtectedLayout } from "../components/protected-layout";
-import {
-  educationalMarkets,
-  learningScenarios,
-  type EducationalMarket,
-} from "../../data/educational-markets";
+import { MarketWorkspace } from "../components/market-workspace";
 import { LessonCompletionForm } from "../components/lesson-completion-form";
 import { getLearningProgress } from "../../db/learning-progress";
 
@@ -12,54 +8,45 @@ export const dynamic = "force-dynamic";
 
 export default async function MarketPage() {
   const user = await requireUser("/market");
-    const lessons = await getLearningProgress(user.id);
+  const lessons = await getLearningProgress(user.id);
 
-    const marketLesson = lessons.find(
+  const marketLesson = lessons.find(
     (lesson) => lesson.slug === "market-basics",
-    );
-  
+  );
 
   return (
     <ProtectedLayout user={user}>
       <section className="market-content">
         <header className="market-heading">
           <div>
-            <p className="eyebrow">
-              EDUCATIONAL MARKET LAB
-            </p>
+            <p className="eyebrow">LIVE MARKET LAB</p>
 
-            <h1>Learn how markets behave.</h1>
+            <h1>Study real market movement.</h1>
 
             <p>
-              Compare fictional market scenarios and practise
-              identifying trends, volatility, and risk. Nothing
-              displayed here represents a real asset or price.
+              Review provider-sourced reference candles for Bitcoin,
+              Ethereum, Solana, and gold. The workspace is read-only
+              and cannot execute trades.
             </p>
           </div>
 
           <span className="simulation-badge">
-            Fictional simulation
+            Read-only learning
           </span>
         </header>
 
         <aside className="market-warning">
-          <strong>Learning mode</strong>
+          <strong>Market-data notice</strong>
 
           <p>
-            This workspace contains simulated information only.
-            It does not provide financial advice, brokerage
-            access, or real-money order execution.
+            Prices may be delayed or temporarily unavailable. This
+            educational workspace does not provide financial advice,
+            brokerage access, deposits, withdrawals, or order
+            execution.
           </p>
         </aside>
 
-        <section className="market-grid">
-          {educationalMarkets.map((market) => (
-            <MarketCard
-              key={market.symbol}
-              market={market}
-            />
-          ))}
-        </section>
+        <MarketWorkspace />
 
         {marketLesson && (
         <section className="inline-lesson-panel">
@@ -94,34 +81,6 @@ export default async function MarketPage() {
         </section>
         )}
 
-        <section className="scenario-section">
-          <div className="scenario-heading">
-            <p className="eyebrow">SCENARIO EXPLORER</p>
-            <h2>Questions to consider</h2>
-          </div>
-
-          <div className="scenario-grid">
-            {learningScenarios.map((scenario, index) => (
-              <article
-                className="scenario-card"
-                key={scenario.title}
-              >
-                <span className="scenario-number">
-                  {String(index + 1).padStart(2, "0")}
-                </span>
-
-                <h3>{scenario.title}</h3>
-                <p>{scenario.description}</p>
-
-                <div className="scenario-question">
-                  <strong>Think about:</strong>
-                  <span>{scenario.question}</span>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-
         <section className="market-next-lesson">
           <div>
             <p className="eyebrow">NEXT LESSON</p>
@@ -138,66 +97,5 @@ export default async function MarketPage() {
         </section>
       </section>
     </ProtectedLayout>
-  );
-}
-
-function MarketCard({
-  market,
-}: {
-  market: EducationalMarket;
-}) {
-  const isPositive = market.changePercent >= 0;
-
-  return (
-    <article className="market-card">
-      <div className="market-card-header">
-        <div>
-          <span className="market-symbol">
-            {market.symbol}
-          </span>
-
-          <h2>{market.name}</h2>
-        </div>
-
-        <span
-          className={`risk-badge risk-${market.riskLevel.toLowerCase()}`}
-        >
-          {market.riskLevel} risk
-        </span>
-      </div>
-
-      <p className="market-description">
-        {market.description}
-      </p>
-
-      <div className="market-reference">
-        <div>
-          <span>Fictional reference value</span>
-
-          <strong>
-            {market.referenceValue.toLocaleString("en-US", {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </strong>
-        </div>
-
-        <span
-          className={
-            isPositive
-              ? "market-change market-change-positive"
-              : "market-change market-change-negative"
-          }
-        >
-          {isPositive ? "+" : ""}
-          {market.changePercent.toFixed(2)}%
-        </span>
-      </div>
-
-      <div className="market-lesson">
-        <strong>Learning note</strong>
-        <p>{market.lesson}</p>
-      </div>
-    </article>
   );
 }

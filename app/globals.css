@@ -49,12 +49,15 @@ main { min-height: 100vh; overflow: hidden; background:
 .ticker-track { display: flex; width: max-content; height: 100%; animation: ticker 32s linear infinite; }
 .ticker-track:hover { animation-play-state: paused; }
 .ticker button { width: 278px; display: flex; align-items: center; gap: 12px; padding: 0 22px; background: transparent; border: 0; border-right: 1px solid var(--line); cursor: pointer; text-align: left; }
+.ticker button:disabled { cursor: not-allowed; opacity: .48; }
+.ticker button:disabled .ticker-live { color: var(--muted); }
 .ticker button > span:first-child { display: grid; gap: 3px; }
 .ticker b { font-size: 12px; }
 .ticker small { font-size: 13px; color: #cbdadd; }
 .up { color: var(--green) !important; }
 .down { color: var(--red) !important; }
 .ticker .up, .ticker .down { font-size: 11px; }
+.ticker-live { margin-left: auto; color: var(--cyan); font-size: 10px; }
 .spark { width: 62px; height: 30px; margin-left: auto; display: flex; align-items: center; gap: 4px; }
 .spark i { width: 4px; border-radius: 3px; background: currentColor; }
 .spark i:nth-child(1) { height: 9px; }.spark i:nth-child(2) { height: 15px; }.spark i:nth-child(3) { height: 12px; }.spark i:nth-child(4) { height: 23px; }.spark i:nth-child(5) { height: 18px; }.spark i:nth-child(6) { height: 25px; }.spark i:nth-child(7) { height: 20px; }
@@ -82,6 +85,7 @@ h1 span { color: transparent; background: linear-gradient(100deg, #21c8ff, #35e6
 .asset-dot { grid-row: 1/3; width: 26px; height: 26px; display: grid; place-items: center; border-radius: 50%; color: #061117; background: var(--cyan); font-size: 9px; font-weight: 900; }
 .terminal-top select { color: white; background: transparent; border: 0; font-weight: 700; outline: none; }
 .terminal-top option { background: var(--panel); }
+.terminal-top option:disabled { color: #71858e; }
 .terminal-top label small, .mini-balance small { color: var(--muted); font-size: 10px; }
 .paper-pill { padding: 7px 12px; color: #032419; background: var(--green); border-radius: 15px; font-size: 10px; font-weight: 900; box-shadow: 0 0 20px rgba(54, 230, 174, .25); }
 .mini-balance { margin-left: auto; display: grid; gap: 3px; padding: 8px 14px; border-radius: 8px; background: #0b2029; }
@@ -91,7 +95,7 @@ h1 span { color: transparent; background: linear-gradient(100deg, #21c8ff, #35e6
 .chart-controls button { padding: 5px 9px; background: transparent; border: 0; border-radius: 5px; color: #9db0b7; cursor: pointer; }
 .chart-controls button.active { color: var(--cyan); background: rgba(28, 206, 255, .12); border: 1px solid rgba(28, 206, 255, .35); }
 .chart-controls > button { margin-left: 24px; }
-.chart-controls > span { margin-left: auto; letter-spacing: 5px; }
+.chart-controls > span { margin-left: auto; }
 .ohlc { display: flex; gap: 10px; padding: 10px 14px 0; color: #87a0a9; font: 600 9px var(--font-geist-mono), monospace; }
 .chart { height: 245px; margin-top: 0; position: relative; overflow: hidden; }
 .grid-lines { position: absolute; inset: 0; background: linear-gradient(rgba(67, 116, 130, .12) 1px, transparent 1px), linear-gradient(90deg, rgba(67, 116, 130, .12) 1px, transparent 1px); background-size: 100% 48px, 84px 100%; }
@@ -109,6 +113,145 @@ h1 span { color: transparent; background: linear-gradient(100deg, #21c8ff, #35e6
 .empty-state div { display: grid; gap: 5px; }
 .empty-state b { font-size: 12px; }.empty-state small { color: #7e929a; font-size: 10px; }
 .empty-state .button { margin-left: 20px; padding: 10px 14px; font-size: 10px; }
+.live-terminal .chart-controls {
+  gap: 12px;
+}
+.live-terminal .chart-controls > button {
+  margin-left: 12px;
+}
+.connection-state {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: var(--green);
+  letter-spacing: 0;
+  white-space: nowrap;
+}
+.connection-state i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 10px currentColor;
+}
+.connection-state.error {
+  color: var(--red);
+}
+.live-candle-chart {
+  min-height: 245px;
+  background: #05141c;
+}
+.terminal-layout .live-candle-chart {
+  min-height: 310px;
+}
+.live-chart-container {
+  position: absolute;
+  inset: 0;
+}
+.chart-message {
+  position: absolute;
+  z-index: 3;
+  inset: 0;
+  display: grid;
+  place-content: center;
+  gap: 7px;
+  padding: 30px;
+  color: #bcd0d6;
+  background: rgba(5, 20, 28, 0.9);
+  text-align: center;
+  font-size: 12px;
+}
+.chart-message span {
+  max-width: 480px;
+  color: var(--muted);
+  line-height: 1.5;
+}
+.chart-message-error b {
+  color: #ff9c9c;
+}
+.terminal-tab-panel {
+  min-height: 145px;
+  background: rgba(3, 14, 20, 0.35);
+}
+.terminal-history,
+.terminal-journal {
+  min-height: 145px;
+  padding: 22px;
+}
+.terminal-history {
+  display: grid;
+  align-content: start;
+  gap: 13px;
+}
+.terminal-history b,
+.terminal-journal label {
+  color: var(--text);
+  font-size: 12px;
+}
+.terminal-history small {
+  color: var(--muted);
+}
+.terminal-history ul,
+.terminal-journal ul {
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+  list-style: none;
+}
+.terminal-history li,
+.terminal-journal li {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  color: #9fb5bc;
+  background: rgba(11, 32, 41, 0.65);
+  font-size: 10px;
+}
+.terminal-journal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+}
+.terminal-journal label,
+.terminal-journal ul {
+  grid-column: 1 / -1;
+}
+.terminal-journal textarea {
+  min-height: 62px;
+  resize: vertical;
+  padding: 11px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  outline: none;
+  color: var(--text);
+  background: #031016;
+  font: inherit;
+  font-size: 11px;
+}
+.terminal-journal textarea:focus {
+  border-color: var(--cyan);
+}
+.terminal-journal .button {
+  align-self: stretch;
+  padding: 10px 14px;
+  font-size: 10px;
+}
+.terminal-journal .button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+  transform: none;
+}
+.terminal-attribution {
+  padding: 8px 14px 10px;
+  border-top: 1px solid rgba(22, 53, 64, 0.7);
+  color: #617983;
+  font-size: 8px;
+  text-align: right;
+}
+.terminal-attribution a {
+  color: #7bdff5;
+}
 .feature-section { max-width: 1240px; padding: 95px 30px 110px; margin: auto; text-align: center; }
 .feature-section h2, .cta-panel h2, .page-head h2 { margin: 0; font-size: clamp(32px, 4vw, 54px); letter-spacing: -.04em; }
 .feature-grid { margin-top: 46px; display: grid; grid-template-columns: repeat(3, 1fr); gap: 18px; text-align: left; }
@@ -196,6 +339,13 @@ footer .brand { font-size: 15px; }footer .shield { width: 30px; height: 34px; fo
   .brand { font-size: 16px; }.shield { width: 33px; height: 38px; }
   .hero { padding: 45px 18px; gap: 35px; }.hero h1 { font-size: 48px; }.hero-actions { flex-direction: column; }.trust-row { grid-template-columns: 1fr; text-align: left; }.trust-row div { grid-template-columns: 42px 1fr; }.trust-row div > span { grid-row: 1/3; }.hero-copy::after { width: 300px; height: 300px; left: 0; }
   .terminal-top { flex-wrap: wrap; }.mini-balance { width: 100%; }.ohlc span:nth-child(-n+3) { display: none; }.empty-state { padding: 16px; }.empty-state .button { display: none; }
+  .live-terminal .chart-controls { height: auto; min-height: 43px; flex-wrap: wrap; padding-top: 7px; padding-bottom: 7px; }
+  .live-terminal .chart-controls > button { margin-left: 0; }
+  .connection-state { width: 100%; margin-left: 0 !important; }
+  .terminal-tabs { gap: 0; overflow-x: auto; align-items: stretch; }
+  .terminal-tabs button { flex: 0 0 auto; }
+  .terminal-journal { grid-template-columns: 1fr; }
+  .terminal-journal label, .terminal-journal ul { grid-column: 1; }
   .feature-grid, .plan-grid, .academy-grid { grid-template-columns: 1fr; }.plan-card.featured { transform: none; }.cta-panel { margin: 0 18px 70px; padding: 30px; flex-direction: column; align-items: flex-start; gap: 25px; }
   .workspace { grid-template-columns: 1fr; }.side-nav { position: sticky; top: 0; z-index: 12; padding: 8px; border-right: 0; border-bottom: 1px solid var(--line); }.side-nav > div:first-child { display: flex; overflow-x: auto; }.side-nav .side-label, .account-card { display: none; }.side-nav button { width: auto; white-space: nowrap; }
   .workspace-main { padding: 20px 14px; }.page-head { align-items: flex-start; flex-direction: column; }.wallet-actions { width: 100%; flex-wrap: wrap; }.wallet-actions > div { width: 100%; }.wallet-actions .button { flex: 1; font-size: 10px; padding: 10px 8px; }
