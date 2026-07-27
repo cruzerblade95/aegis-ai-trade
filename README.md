@@ -27,6 +27,8 @@ Aegis helps users practice a repeatable market-learning process:
 - Working Positions, Orders, History, and Trade journal panels
 - Persistent personal watchlists for supported learning markets
 - Configurable educational price thresholds with pause and delete controls
+- Persistent learning-journal observations with edit and delete controls
+- Market, timeframe, risk, and later-reflection fields for each journal entry
 - Market selector shared by the homepage and signed-in Market Lab
 - Virtual account balance
 - Virtual top-up and withdrawal flows
@@ -133,7 +135,6 @@ Before any real-money release, engage qualified legal and compliance professiona
 
 ### v0.3 — Market learning
 
-- Persistent learning-journal observations
 - AI explanation history with citations
 - Structured learning review
 
@@ -156,6 +157,15 @@ Before any real-money release, engage qualified legal and compliance professiona
 - Responsible AI evaluation and model-monitoring controls
 
 ## Release history
+
+### v0.3.3 — 2026-07-28
+
+- Added database-backed learning-journal observations.
+- Added market and timeframe context to every saved entry.
+- Added guided evidence, uncertainty, and later-reflection fields.
+- Added edit and delete controls with per-user ownership checks.
+- Added a bounded, scrollable review history.
+- Kept the journal educational and disconnected from order execution.
 
 ### v0.3.2 — 2026-07-27
 

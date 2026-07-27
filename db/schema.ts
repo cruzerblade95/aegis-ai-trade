@@ -345,6 +345,8 @@ export const tradeJournalEntries = sqliteTable(
       },
     ),
 
+    marketSymbol: text("market_symbol").notNull().default("BTCUSD"),
+    timeframe: text("timeframe").notNull().default("5min"),
     title: text("title").notNull(),
     thesis: text("thesis").notNull(),
     riskNotes: text("risk_notes").notNull(),

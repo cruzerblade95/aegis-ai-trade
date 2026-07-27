@@ -3,7 +3,9 @@ import { ProtectedLayout } from "../components/protected-layout";
 import { MarketWorkspace } from "../components/market-workspace";
 import { LessonCompletionForm } from "../components/lesson-completion-form";
 import { MarketWatchlistPanel } from "../components/market-watchlist-panel";
+import { LearningJournalPanel } from "../components/learning-journal-panel";
 import { getLearningProgress } from "../../db/learning-progress";
+import { getLearningJournalEntries } from "../../db/learning-journal";
 import {
   getMarketLearningPreferences,
   isLearningMarketSymbol,
@@ -23,9 +25,10 @@ export default async function MarketPage({
     isLearningMarketSymbol(params.symbol)
       ? params.symbol
       : "BTCUSD";
-  const [lessons, marketPreferences] = await Promise.all([
+  const [lessons, marketPreferences, journalEntries] = await Promise.all([
     getLearningProgress(user.id),
     getMarketLearningPreferences(user.id),
+    getLearningJournalEntries(user.id),
   ]);
 
   const marketLesson = lessons.find(
@@ -71,6 +74,11 @@ export default async function MarketPage({
         />
 
         <MarketWorkspace initialSelectedKey={selectedMarket} />
+
+        <LearningJournalPanel
+          entries={journalEntries}
+          selectedMarket={selectedMarket}
+        />
 
         {marketLesson && (
         <section className="inline-lesson-panel">
