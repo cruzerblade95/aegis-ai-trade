@@ -1,0 +1,17 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "aegis-ai-trade-local",
+  "main": "worker/index.ts",
+  "compatibility_date": "2026-05-22",
+  "compatibility_flags": [
+    "nodejs_compat"
+  ],
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "aegis-ai-trade",
+      "database_id": "7428e343-f01f-4f2c-b764-890c88f18562",
+      "migrations_dir": "drizzle"
+    }
+  ]
+}

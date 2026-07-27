@@ -1,6 +1,8 @@
 # Aegis AI Trade
 
-A premium educational paper-trading platform prototype with continuously updating simulated charts, risk-aware AI learning tools, virtual wallet workflows, plan management, an academy, and an admin control center.
+A premium educational market-learning platform with live reference
+candlesticks, risk-aware AI learning tools, virtual wallet workflows, plan
+management, an academy, and an admin control center.
 
 > Aegis is an educational prototype. It does not accept real deposits, process withdrawals, execute brokerage orders, or promise investment returns.
 
@@ -8,7 +10,7 @@ A premium educational paper-trading platform prototype with continuously updatin
 
 Aegis helps users practice a repeatable market-learning process:
 
-1. Observe simulated market movement.
+1. Observe real, provider-sourced reference candles.
 2. Ask for plain-language, risk-aware explanations.
 3. Record decisions and review habits.
 4. Explore plans and lessons using virtual credits.
@@ -16,8 +18,14 @@ Aegis helps users practice a repeatable market-learning process:
 ## Current features
 
 - Responsive Obsidian Signal landing page
-- Continuously updating simulated market chart
-- Currency and market selector
+- Selectable Kraken or Twelve Data market provider
+- Live BTC/USD, ETH/USD, and SOL/USD candlesticks with either provider
+- XAU/USD candlesticks with Twelve Data (shown as unavailable with Kraken)
+- Working 1m, 5m, 1h, and 1D timeframe controls
+- Thirty-second automatic refresh with visible connection and error states
+- Optional 20-period simple moving average
+- Working Positions, Orders, History, and Trade journal panels
+- Market selector shared by the homepage and signed-in Market Lab
 - Virtual account balance
 - Virtual top-up and withdrawal flows
 - AI risk explanation panel
@@ -52,6 +60,23 @@ npm run dev
 Open `http://localhost:5173` in your browser. Press `Ctrl+C` in the terminal to
 stop the development server.
 
+Copy `.dev.vars.example` to `.dev.vars`, then set:
+
+```env
+MARKET_DATA_PROVIDER=kraken
+```
+
+Kraken's public OHLC endpoint does not require an API key. To switch back to
+Twelve Data, use:
+
+```env
+MARKET_DATA_PROVIDER=twelve_data
+TWELVE_DATA_API_KEY=your_actual_key
+```
+
+Restart the development server after changing `.dev.vars`. The Twelve Data key
+stays server-side and is never sent to the browser.
+
 Production checks:
 
 ```bash
@@ -71,6 +96,8 @@ npm run start
 
 ```text
 app/
+  api/market/     Validated server-side market-data proxy
+  components/     Live chart, selectors, tabs, and journal interface
   globals.css     Visual system, layout, animation, and responsive styles
   layout.tsx      Metadata and root layout
   page.tsx        Landing page and interactive prototype workspace
@@ -84,7 +111,8 @@ README.md         Product, setup, release history, and roadmap
 The current release is intentionally paper-trading only:
 
 - All balances and transactions are virtual.
-- Market movement is simulated and is not live brokerage data.
+- Market candles are read-only reference data and may be delayed.
+- Viewed history and chart observations are educational interface state.
 - AI output is educational, not personalized financial advice.
 - There are no real payment credentials, wallets, or broker connections.
 - There are no guaranteed-profit messages or automated real-money orders.
@@ -103,11 +131,10 @@ Before any real-money release, engage qualified legal and compliance professiona
 
 ### v0.3 — Market learning
 
-- Licensed delayed market-data integration
-- Candlestick and technical-indicator components
-- Watchlists and alert simulations
+- Watchlists and configurable educational alerts
+- Persistent learning-journal observations
 - AI explanation history with citations
-- Structured trade journal and performance review
+- Structured learning review
 
 ### v0.4 — Operations
 
@@ -128,6 +155,24 @@ Before any real-money release, engage qualified legal and compliance professiona
 - Responsible AI evaluation and model-monitoring controls
 
 ## Release history
+
+### v0.3.1 — 2026-07-27
+
+- Added `.dev.vars` provider selection between Kraken and Twelve Data.
+- Made Kraken the default provider with no API key required.
+- Added Kraken OHLC support for BTC/USD, ETH/USD, and SOL/USD.
+- Disabled XAU/USD when Kraken is active and restored it under Twelve Data.
+
+### v0.3.0 — 2026-07-27
+
+- Replaced the manually animated SVG graph with provider-sourced OHLC candles.
+- Added functional 1m, 5m, 1h, and 1D timeframe requests.
+- Added BTC/USD, ETH/USD, SOL/USD, and XAU/USD selection.
+- Added automatic refresh, loading, connection, and provider-error states.
+- Added an optional SMA 20 overlay.
+- Wired the Positions, Orders, History, and Trade journal tabs.
+- Kept the workspace read-only with no brokerage or order execution.
+- Added regression coverage for the live-data route and interactive controls.
 
 ### v0.1.0 — 2026-07-27
 
