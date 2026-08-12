@@ -26,6 +26,7 @@ export async function GET() {
       user: {
         displayName: user.displayName,
         email: user.email,
+        role: user.role,
       },
     },
     {

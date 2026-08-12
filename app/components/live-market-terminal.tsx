@@ -6,12 +6,9 @@ import {
   LineStyle,
   LineSeries,
   createChart,
-  createSeriesMarkers,
   type IChartApi,
   type IPriceLine,
   type ISeriesApi,
-  type ISeriesMarkersPluginApi,
-  type Time,
   type UTCTimestamp,
 } from "lightweight-charts";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -28,10 +25,12 @@ export type LiveMarketInterval = "1min" | "5min" | "1h" | "1day";
 export type TradeChartOrder = {
   id: string;
   side: "buy" | "sell";
-  status: "filled" | "pending";
+  status: "open" | "pending";
   price: number;
   quantity: number;
   time: number;
+  takeProfit?: number | null;
+  stopLoss?: number | null;
 };
 type WorkspaceTab = "positions" | "orders" | "history" | "journal";
 
@@ -128,10 +127,9 @@ export function LiveMarketTerminal({
     useRef<ISeriesApi<"Candlestick"> | null>(null);
   const averageSeriesRef =
     useRef<ISeriesApi<"Line"> | null>(null);
-  const markerPluginRef =
-    useRef<ISeriesMarkersPluginApi<Time> | null>(null);
-  const limitPriceLinesRef = useRef<IPriceLine[]>([]);
+  const tradePriceLinesRef = useRef<IPriceLine[]>([]);
   const fitNextDataRef = useRef(true);
+  const barSpacingRef = useRef(compact ? 8 : 12);
 
   const [interval, setInterval] =
     useState<LiveMarketInterval>("5min");
@@ -166,7 +164,7 @@ export function LiveMarketTerminal({
 
     const chart = createChart(container, {
       autoSize: true,
-      height: compact ? 245 : 310,
+      height: compact ? 280 : 430,
       layout: {
         background: {
           type: ColorType.Solid,
@@ -182,9 +180,27 @@ export function LiveMarketTerminal({
         borderColor: "#163540",
       },
       timeScale: {
+        barSpacing: barSpacingRef.current,
         borderColor: "#163540",
+        fixLeftEdge: false,
+        fixRightEdge: false,
+        lockVisibleTimeRangeOnResize: true,
+        rightBarStaysOnScroll: true,
+        rightOffset: 6,
         secondsVisible: false,
         timeVisible: true,
+      },
+      handleScale: {
+        axisDoubleClickReset: true,
+        axisPressedMouseMove: true,
+        mouseWheel: true,
+        pinch: true,
+      },
+      handleScroll: {
+        horzTouchDrag: true,
+        mouseWheel: true,
+        pressedMouseMove: true,
+        vertTouchDrag: true,
       },
       crosshair: {
         horzLine: { color: "#1cceff" },
@@ -205,20 +221,15 @@ export function LiveMarketTerminal({
       lineWidth: 2,
       visible: false,
     });
-    const markerPlugin = createSeriesMarkers(candleSeries, []);
-
     chartRef.current = chart;
     candleSeriesRef.current = candleSeries;
     averageSeriesRef.current = averageSeries;
-    markerPluginRef.current = markerPlugin;
 
     return () => {
-      markerPlugin.detach();
       chartRef.current = null;
       candleSeriesRef.current = null;
       averageSeriesRef.current = null;
-      markerPluginRef.current = null;
-      limitPriceLinesRef.current = [];
+      tradePriceLinesRef.current = [];
       chart.remove();
     };
   }, [compact]);
@@ -239,7 +250,7 @@ export function LiveMarketTerminal({
     );
 
     if (fitNextDataRef.current && candles.length > 0) {
-      chartRef.current?.timeScale().fitContent();
+      showDefaultChartRange(chartRef.current, candles.length);
       fitNextDataRef.current = false;
     }
   }, [candles]);
@@ -252,73 +263,79 @@ export function LiveMarketTerminal({
 
   useEffect(() => {
     const candleSeries = candleSeriesRef.current;
-    const markerPlugin = markerPluginRef.current;
 
-    if (!candleSeries || !markerPlugin) {
+    if (!candleSeries) {
       return;
     }
 
-    for (const priceLine of limitPriceLinesRef.current) {
+    for (const priceLine of tradePriceLinesRef.current) {
       candleSeries.removePriceLine(priceLine);
     }
-    limitPriceLinesRef.current = [];
+    tradePriceLinesRef.current = [];
 
-    if (candles.length === 0) {
-      markerPlugin.setMarkers([]);
-      return;
-    }
+    const lines: IPriceLine[] = [];
 
-    const markers = tradeOrders
-      .filter((order) => order.status === "filled")
-      .flatMap((order) => {
-        const time = nearestVisibleCandleTime(candles, order.time);
+    for (const order of tradeOrders) {
+      if (!Number.isFinite(order.price) || order.price <= 0) {
+        continue;
+      }
 
-        if (time === null) {
-          return [];
+      const sideColor = order.side === "buy" ? "#36e6ae" : "#ff5d63";
+      const ticket = order.id.slice(0, 8);
+
+      if (order.status === "open") {
+        lines.push(
+          candleSeries.createPriceLine({
+            axisLabelVisible: true,
+            color: sideColor,
+            lineStyle: LineStyle.Solid,
+            lineWidth: 1,
+            price: order.price,
+            title: `#${ticket} ${order.side.toUpperCase()} ${formatMarkerQuantity(order.quantity)}`,
+          }),
+        );
+
+        if (order.takeProfit && Number.isFinite(order.takeProfit)) {
+          lines.push(
+            candleSeries.createPriceLine({
+              axisLabelVisible: true,
+              color: "#36e6ae",
+              lineStyle: LineStyle.Dashed,
+              lineWidth: 1,
+              price: order.takeProfit,
+              title: `#${ticket} TP`,
+            }),
+          );
         }
 
-        return [
-          {
-            color: order.side === "buy" ? "#36e6ae" : "#ff5d63",
-            position:
-              order.side === "buy"
-                ? ("belowBar" as const)
-                : ("aboveBar" as const),
-            shape:
-              order.side === "buy"
-                ? ("arrowUp" as const)
-                : ("arrowDown" as const),
-            text: `${order.side.toUpperCase()} ${formatMarkerQuantity(
-              order.quantity,
-            )} @ ${formatMarkerPrice(order.price)}`,
-            time: time as UTCTimestamp,
-          },
-        ];
-      })
-      .sort((left, right) => Number(left.time) - Number(right.time));
+        if (order.stopLoss && Number.isFinite(order.stopLoss)) {
+          lines.push(
+            candleSeries.createPriceLine({
+              axisLabelVisible: true,
+              color: "#ffb84d",
+              lineStyle: LineStyle.Dashed,
+              lineWidth: 1,
+              price: order.stopLoss,
+              title: `#${ticket} SL`,
+            }),
+          );
+        }
+      } else {
+        lines.push(
+          candleSeries.createPriceLine({
+            axisLabelVisible: true,
+            color: sideColor,
+            lineStyle: LineStyle.Dashed,
+            lineWidth: 1,
+            price: order.price,
+            title: `#${ticket} ${order.side.toUpperCase()} LIMIT`,
+          }),
+        );
+      }
+    }
 
-    markerPlugin.setMarkers(markers);
-
-    limitPriceLinesRef.current = tradeOrders
-      .filter(
-        (order) =>
-          order.status === "pending" &&
-          Number.isFinite(order.price) &&
-          order.price > 0,
-      )
-      .map((order) =>
-        candleSeries.createPriceLine({
-          axisLabelVisible: true,
-          color: order.side === "buy" ? "#36e6ae" : "#ff5d63",
-          lineStyle: LineStyle.Dashed,
-          lineWidth: 1,
-          price: order.price,
-          title: `${order.side.toUpperCase()} LIMIT ${formatMarkerQuantity(
-            order.quantity,
-          )}`,
-        }),
-      );
-  }, [candles, tradeOrders]);
+    tradePriceLinesRef.current = lines;
+  }, [tradeOrders]);
 
   useEffect(() => {
     let active = true;
@@ -566,6 +583,26 @@ export function LiveMarketTerminal({
     [interval, selectedMarket.label],
   );
 
+  function zoomChart(direction: "in" | "out") {
+    const nextSpacing = Math.min(32, Math.max(4,
+      barSpacingRef.current + (direction === "in" ? 2 : -2),
+    ));
+
+    barSpacingRef.current = nextSpacing;
+    chartRef.current?.timeScale().applyOptions({
+      barSpacing: nextSpacing,
+    });
+  }
+
+  function resetChartView() {
+    barSpacingRef.current = compact ? 8 : 12;
+    chartRef.current?.timeScale().applyOptions({
+      barSpacing: barSpacingRef.current,
+      rightOffset: 6,
+    });
+    showDefaultChartRange(chartRef.current, candles.length);
+  }
+
   function saveJournalNote() {
     const note = journalDraft.trim();
 
@@ -651,6 +688,33 @@ export function LiveMarketTerminal({
         >
           SMA 20
         </button>
+
+        <div aria-label="Chart zoom" className="chart-zoom-controls">
+          <button
+            aria-label="Zoom chart out"
+            onClick={() => zoomChart("out")}
+            title="Zoom out"
+            type="button"
+          >
+            −
+          </button>
+          <button
+            aria-label="Reset chart zoom"
+            onClick={resetChartView}
+            title="Reset chart view"
+            type="button"
+          >
+            Reset
+          </button>
+          <button
+            aria-label="Zoom chart in"
+            onClick={() => zoomChart("in")}
+            title="Zoom in"
+            type="button"
+          >
+            +
+          </button>
+        </div>
 
         <span className={`connection-state ${error ? "error" : ""}`}>
           <i />
@@ -851,56 +915,13 @@ function TerminalEmptyState({
   );
 }
 
-function nearestVisibleCandleTime(
-  candles: Candle[],
-  timestampMs: number,
-): number | null {
-  if (candles.length === 0 || !Number.isFinite(timestampMs)) {
-    return null;
-  }
-
-  const timestamp = Math.floor(timestampMs / 1000);
-  const first = candles[0].time;
-  const last = candles[candles.length - 1].time;
-  const lastCandleGap =
-    candles.length > 1
-      ? Math.max(60, last - candles[candles.length - 2].time)
-      : 86_400;
-
-  if (
-    timestamp < first - lastCandleGap ||
-    timestamp > last + lastCandleGap
-  ) {
-    return null;
-  }
-
-  let nearest = candles[0].time;
-  let distance = Math.abs(nearest - timestamp);
-
-  for (const candle of candles) {
-    const nextDistance = Math.abs(candle.time - timestamp);
-
-    if (nextDistance < distance) {
-      nearest = candle.time;
-      distance = nextDistance;
-    }
-  }
-
-  return nearest;
-}
-
 function formatMarkerQuantity(value: number): string {
   return value.toLocaleString("en-US", {
     maximumFractionDigits: 6,
   });
 }
 
-function formatMarkerPrice(value: number): string {
-  return `$${value.toLocaleString("en-US", {
-    maximumFractionDigits: 2,
-    minimumFractionDigits: 2,
-  })}`;
-}
+
 
 function krakenStreamInterval(
   interval: LiveMarketInterval,
@@ -965,6 +986,21 @@ function timeframeLabel(interval: LiveMarketInterval) {
     timeframeOptions.find((option) => option.value === interval)?.label ??
     interval
   );
+}
+
+function showDefaultChartRange(
+  chart: IChartApi | null,
+  candleCount: number,
+) {
+  if (!chart || candleCount <= 0) {
+    return;
+  }
+
+  const visibleBars = Math.min(72, candleCount);
+  chart.timeScale().setVisibleLogicalRange({
+    from: Math.max(0, candleCount - visibleBars),
+    to: candleCount + 5,
+  });
 }
 
 function movingAverage(candles: Candle[], period: number) {

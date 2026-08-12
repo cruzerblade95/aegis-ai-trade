@@ -24,11 +24,17 @@ const users = [
   { name: "Daniel Tan", email: "daniel@example.test", plan: "Analyst", status: "Paused", balance: "$88,310" },
 ];
 
-function Logo() {
+function Logo({ onHome }: { onHome: () => void }) {
   return (
-    <button className="brand" onClick={() => window.scrollTo({ top: 0, behavior: "smooth" })} aria-label="Aegis AI Trade home">
-      <span className="shield">A</span>
-      <span>Aegis <b>AI Trade</b></span>
+    <button className="brand" onClick={onHome} aria-label="Return to Aegis AI Trade homepage">
+      <span className="aegis-logo" aria-hidden="true">
+        <svg viewBox="0 0 48 52" role="img">
+          <path className="logo-shell" d="M24 2 43 10v14c0 12-7.8 21.7-19 26C12.8 45.7 5 36 5 24V10L24 2Z" />
+          <path className="logo-a" d="m14 35 10-22 10 22M18.5 27h11" />
+          <path className="logo-signal" d="M35 13.5h5M37.5 11v5" />
+        </svg>
+      </span>
+      <span className="brand-copy"><strong>Aegis</strong><b>AI Trade</b><small>Autonomous strategy engine</small></span>
     </button>
   );
 }
@@ -76,18 +82,19 @@ export default function Home() {
   return (
     <main>
       <div className="education-strip">
-        <span><i /> EDUCATIONAL USE ONLY</span>
-        <p>Aegis AI Trade uses virtual funds for learning and practice.</p>
-        <span className="system"><i /> Live simulation active</span>
+        <span><i /> AI TRADE AUTOMATION</span>
+        <p>Plan-powered strategy scanning, automated entries, TP/SL and position management.</p>
+        <span className="system"><i /> Background engine online</span>
       </div>
 
       <header className="nav-shell">
-        <Logo />
+        <Logo onHome={() => { setView("home"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
         <nav aria-label="Main navigation">
-          <button onClick={() => navigate("terminal")}>Markets</button>
-          <button onClick={() => navigate("terminal")}>AI Insights</button>
+          <button onClick={() => navigate("home")}>Home</button>
+          <button onClick={() => navigate("terminal")}>Live Terminal</button>
+          <button onClick={() => navigate("terminal")}>AI Strategies</button>
           <button onClick={() => navigate("plans")}>Plans</button>
-          <button onClick={() => navigate("academy")}>Academy</button>
+          <button onClick={() => navigate("academy")}>How It Works</button>
         </nav>
         <HomeAuthActions />
       </header>
@@ -129,19 +136,19 @@ export default function Home() {
         <>
           <section className="hero" id="app-view">
             <div className="hero-copy">
-              <p className="eyebrow">PRACTICE • LEARN • IMPROVE</p>
-              <h1>AI-assisted market practice, <span>built for clarity.</span></h1>
-              <p className="lead">Build market literacy with virtual funds, responsive charts, and risk-aware AI explanations—without putting real money at risk.</p>
+              <p className="eyebrow">AUTOMATE • MONITOR • CONTROL</p>
+              <h1>Automated AI trading, <span>guided by strategy.</span></h1>
+              <p className="lead">Run plan-based AI strategies that scan markets, open independent positions, apply TP/SL, and manage exits in the background across Virtual and Current Balance environments.</p>
               <div className="hero-actions">
-                <button className="button primary" onClick={() => navigate("terminal")}>Start paper trading <span>→</span></button>
-                <button className="button secondary" onClick={() => navigate("academy")}>Explore the academy <span>→</span></button>
+                <button className="button primary" onClick={() => navigate("terminal")}>Launch AI Trade <span>→</span></button>
+                <button className="button secondary" onClick={() => navigate("plans")}>View AI plans <span>→</span></button>
               </div>
               <div className="trust-row">
-                <div><span>⌾</span><b>Risk-aware insights</b><small>Understand risk before action.</small></div>
-                <div><span>▥</span><b>Practice with purpose</b><small>Test ideas with virtual funds.</small></div>
-                <div><span>◇</span><b>Learn continuously</b><small>Turn activity into lessons.</small></div>
+                <div><span>⌾</span><b>Multi-strategy analysis</b><small>RSI, Bollinger Bands, momentum and trend confirmation.</small></div>
+                <div><span>▥</span><b>Automated execution</b><small>Open and manage positions using saved settings.</small></div>
+                <div><span>◇</span><b>Always-on monitoring</b><small>Background scans continue across user pages.</small></div>
               </div>
-              <p className="fine-print">ⓘ No real funds. No brokerage execution. No guaranteed returns.</p>
+              <p className="fine-print">ⓘ AI trading involves risk. Strategy signals and higher-tier plans do not guarantee profit or winning trades.</p>
             </div>
             <LiveMarketTerminal
               balance={balance}
@@ -154,18 +161,18 @@ export default function Home() {
           </section>
 
           <section className="feature-section">
-            <p className="eyebrow center">ONE WORKSPACE, THREE LEARNING LOOPS</p>
-            <h2>From market movement to better decisions.</h2>
+            <p className="eyebrow center">ONE ENGINE, THREE AUTOMATED WORKFLOWS</p>
+            <h2>From live signals to managed positions.</h2>
             <div className="feature-grid">
-              <article><span>01</span><h3>Observe</h3><p>Follow continuously updating simulated markets with focused watchlists and clear price context.</p></article>
-              <article><span>02</span><h3>Understand</h3><p>Ask AI to explain volatility, drawdown, trend structure, and position-sizing concepts in plain language.</p></article>
-              <article><span>03</span><h3>Reflect</h3><p>Review practice decisions in a journal designed to reveal habits—not chase winning streaks.</p></article>
+              <article><span>01</span><h3>Scan</h3><p>The AI engine monitors supported markets using the strategy set available in the user’s active plan.</p></article>
+              <article><span>02</span><h3>Execute</h3><p>Qualified signals can open independent Buy or Sell tickets with user-defined volume, Take Profit and Stop Loss.</p></article>
+              <article><span>03</span><h3>Manage</h3><p>Background automation monitors open AI positions and can close them through TP, SL or strategy reversal rules.</p></article>
             </div>
           </section>
 
           <section className="cta-panel">
-            <div><p className="eyebrow">PAPER TRADING, REFRAMED</p><h2>Train your process before you risk capital.</h2></div>
-            <button className="button primary" onClick={() => navigate("terminal")}>Enter the practice terminal →</button>
+            <div><p className="eyebrow">AI TRADING, UNDER YOUR CONTROL</p><h2>Choose a plan, configure your risk settings, and let the AI engine monitor the market.</h2></div>
+            <button className="button primary" onClick={() => navigate("terminal")}>Open the AI Trade terminal →</button>
           </section>
         </>
       ) : (
@@ -272,9 +279,9 @@ export default function Home() {
       )}
 
       <footer>
-        <Logo />
-        <p>Educational market-learning prototype. Reference data may be delayed.</p>
-        <div><button onClick={() => navigate("academy")}>Risk disclosure</button><button onClick={() => navigate("admin")}>Admin demo</button><span>© 2026 Aegis</span></div>
+        <Logo onHome={() => { setView("home"); window.scrollTo({ top: 0, behavior: "smooth" }); }} />
+        <p>AI-powered automated trading platform. Market data and execution timing may vary by provider.</p>
+        <div><button onClick={() => navigate("academy")}>Risk disclosure</button><button onClick={() => navigate("plans")}>Plans</button><span>© 2026 Aegis</span></div>
       </footer>
 
       {modal && (

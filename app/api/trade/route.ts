@@ -10,6 +10,7 @@ import {
   getVirtualTradingState,
   placeVirtualOrder,
   syncVirtualLimitOrders,
+  updateVirtualPositionStops,
   VirtualTradingError,
 } from "../../../db/virtual-trading";
 import { isMarketSymbol } from "../../../lib/market-data";
@@ -29,9 +30,13 @@ type TradeRequest = {
   title?: unknown;
   observation?: unknown;
   riskNotes?: unknown;
+  takeProfit?: unknown;
+  stopLoss?: unknown;
+  positionId?: unknown;
+  environment?: unknown;
 };
 
-export async function GET() {
+export async function GET(request: Request) {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -41,7 +46,8 @@ export async function GET() {
     );
   }
 
-  return NextResponse.json(await getVirtualTradingState(user.id), {
+  const environment = readEnvironment(new URL(request.url).searchParams.get("environment"));
+  return NextResponse.json(await getVirtualTradingState(user.id, environment), {
     headers: { "Cache-Control": "no-store" },
   });
 }
@@ -65,20 +71,20 @@ export async function POST(request: Request) {
 
   try {
     const body = (await request.json()) as TradeRequest;
+    const environment = readEnvironment(body.environment);
 
     switch (body.action) {
       case "place":
         await placeVirtualOrder(user.id, {
+          environment,
           marketSymbol: readString(body.marketSymbol),
           side: readString(body.side),
           orderType: readString(body.orderType),
           quantity: Number(body.quantity),
           limitPrice:
-            body.limitPrice === null ||
-            body.limitPrice === undefined ||
-            body.limitPrice === ""
-              ? null
-              : Number(body.limitPrice),
+            body.limitPrice === null || body.limitPrice === undefined || body.limitPrice === "" ? null : Number(body.limitPrice),
+          takeProfit: body.takeProfit === null || body.takeProfit === undefined || body.takeProfit === "" ? null : Number(body.takeProfit),
+          stopLoss: body.stopLoss === null || body.stopLoss === undefined || body.stopLoss === "" ? null : Number(body.stopLoss),
         });
         break;
 
@@ -92,8 +98,13 @@ export async function POST(request: Request) {
       case "close":
         await closeVirtualPosition(
           user.id,
-          readString(body.marketSymbol),
+          readString(body.positionId),
+          environment,
         );
+        break;
+
+      case "stops":
+        await updateVirtualPositionStops(user.id, readString(body.positionId), body.takeProfit === null || body.takeProfit === undefined || body.takeProfit === "" ? null : Number(body.takeProfit), body.stopLoss === null || body.stopLoss === undefined || body.stopLoss === "" ? null : Number(body.stopLoss), environment);
         break;
 
       case "sync":
@@ -118,7 +129,7 @@ export async function POST(request: Request) {
     }
 
     return NextResponse.json(
-      await getVirtualTradingState(user.id),
+      await getVirtualTradingState(user.id, environment),
       { headers: { "Cache-Control": "no-store" } },
     );
   } catch (error) {
@@ -205,3 +216,5 @@ function isSameOrigin(request: Request): boolean {
 
   return !origin || origin === new URL(request.url).origin;
 }
+
+function readEnvironment(value: unknown): "virtual" | "current" { return value === "current" ? "current" : "virtual"; }

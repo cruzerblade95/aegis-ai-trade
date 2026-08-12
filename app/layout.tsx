@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import { AiTradeMonitor } from "./components/ai-trade-monitor";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -13,9 +14,9 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Aegis AI Trade | Educational Paper Trading",
+  title: "Aegis AI Trade | Automated AI Trading",
   description:
-    "Practice market analysis with virtual funds, continuously updating simulated charts, and risk-aware AI explanations.",
+    "Plan-powered AI trading with automated market scanning, position entries, TP/SL management and background strategy monitoring.",
   other: {
     "codex-preview": "development",
   },
@@ -36,6 +37,7 @@ export default function RootLayout({
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         {children}
+        <AiTradeMonitor />
       </body>
     </html>
   );

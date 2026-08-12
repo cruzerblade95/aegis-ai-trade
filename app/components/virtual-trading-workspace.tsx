@@ -8,6 +8,8 @@ import {
   useState,
   type FormEvent,
 } from "react";
+import type { UserPlan } from "../../db/plans";
+import { AiAutoTrader } from "./ai-auto-trader";
 import type {
   VirtualOrderSide,
   VirtualOrderType,
@@ -22,7 +24,7 @@ import {
 } from "./live-market-terminal";
 
 type RecordTab = "positions" | "orders" | "history" | "journal";
-type TradingEnvironment = "virtual" | "real";
+type TradingEnvironment = "virtual" | "current";
 
 type LiveQuote = {
   fetchedAt: string;
@@ -41,8 +43,10 @@ const recordTabs: Array<{ label: string; value: RecordTab }> = [
 
 export function VirtualTradingWorkspace({
   initialState,
+  plan,
 }: {
   initialState: VirtualTradingState;
+  plan: UserPlan;
 }) {
   const [account, setAccount] = useState(initialState);
   const [selectedKey, setSelectedKey] =
@@ -53,10 +57,12 @@ export function VirtualTradingWorkspace({
     useState<VirtualOrderType>("market");
   const [quantity, setQuantity] = useState("0.01");
   const [limitPrice, setLimitPrice] = useState("");
+  const [takeProfit, setTakeProfit] = useState("");
+  const [stopLoss, setStopLoss] = useState("");
   const [activeTab, setActiveTab] =
     useState<RecordTab>("positions");
   const [environment, setEnvironment] =
-    useState<TradingEnvironment>("virtual");
+    useState<TradingEnvironment>(initialState.environment);
   const [chartRefreshToken, setChartRefreshToken] = useState(0);
   const [busy, setBusy] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
@@ -70,7 +76,7 @@ export function VirtualTradingWorkspace({
   const selectedMarket =
     liveMarkets.find((market) => market.key === selectedKey) ??
     liveMarkets[0];
-  const selectedPosition = account.positions.find(
+  const selectedPositions = account.positions.filter(
     (position) => position.marketSymbol === selectedKey,
   );
   const numericQuantity = Number(quantity);
@@ -86,20 +92,17 @@ export function VirtualTradingWorkspace({
       : null;
   const chartTradeOrders = useMemo<TradeChartOrder[]>(
     () => [
-      ...account.history
-        .filter(
-          (order) =>
-            order.marketSymbol === selectedKey &&
-            order.status === "filled" &&
-            order.executedPrice !== null,
-        )
-        .map((order) => ({
-          id: order.id,
-          side: order.side,
-          status: "filled" as const,
-          price: order.executedPrice as number,
-          quantity: order.quantity,
-          time: order.filledAt ?? order.createdAt,
+      ...account.positions
+        .filter((position) => position.marketSymbol === selectedKey)
+        .map((position) => ({
+          id: position.id,
+          side: position.side,
+          status: "open" as const,
+          price: position.averageEntryPrice,
+          quantity: position.quantity,
+          time: position.openedAt,
+          takeProfit: position.takeProfit,
+          stopLoss: position.stopLoss,
         })),
       ...account.orders
         .filter(
@@ -116,7 +119,7 @@ export function VirtualTradingWorkspace({
           time: order.createdAt,
         })),
     ],
-    [account.history, account.orders, selectedKey],
+    [account.orders, account.positions, selectedKey],
   );
 
   const requestAccount = useCallback(
@@ -131,13 +134,13 @@ export function VirtualTradingWorkspace({
       }
 
       try {
-        const response = await fetch("/api/trade", {
+        const response = await fetch(body ? "/api/trade" : `/api/trade?environment=${environment}`, {
           method: body ? "POST" : "GET",
           cache: "no-store",
           headers: body
             ? { "Content-Type": "application/json" }
             : undefined,
-          body: body ? JSON.stringify(body) : undefined,
+          body: body ? JSON.stringify({ ...body, environment }) : undefined,
         });
         const data = (await response.json()) as
           | VirtualTradingState
@@ -168,8 +171,10 @@ export function VirtualTradingWorkspace({
         }
       }
     },
-    [],
+    [environment],
   );
+
+  useEffect(() => { void requestAccount(undefined, { quiet: true }); }, [environment, requestAccount]);
 
   useEffect(() => {
     if (
@@ -201,8 +206,9 @@ export function VirtualTradingWorkspace({
       side,
       orderType,
       quantity: numericQuantity,
-      limitPrice:
-        orderType === "limit" ? numericLimitPrice : null,
+      limitPrice: orderType === "limit" ? numericLimitPrice : null,
+      takeProfit: takeProfit === "" ? null : Number(takeProfit),
+      stopLoss: stopLoss === "" ? null : Number(stopLoss),
     });
 
     if (result) {
@@ -212,7 +218,7 @@ export function VirtualTradingWorkspace({
           ? `Virtual ${side} filled using the live provider price.`
           : `Virtual limit ${side} accepted. It may fill immediately if the live price already meets the limit.`,
       );
-      setActiveTab(orderType === "limit" ? "orders" : "history");
+      setActiveTab(orderType === "limit" ? "orders" : "positions");
     }
   }
 
@@ -228,11 +234,8 @@ export function VirtualTradingWorkspace({
     }
   }
 
-  async function closePosition(marketSymbol: MarketKey) {
-    const result = await requestAccount({
-      action: "close",
-      marketSymbol,
-    });
+  async function closePosition(positionId: string, marketSymbol: MarketKey) {
+    const result = await requestAccount({ action: "close", positionId });
 
     if (result) {
       setSelectedKey(marketSymbol);
@@ -240,8 +243,13 @@ export function VirtualTradingWorkspace({
       setNotice(
         `${formatMarket(marketSymbol)} virtual position closed at the latest provider price.`,
       );
-      setActiveTab("history");
+      setActiveTab("positions");
     }
+  }
+
+  async function updateStops(positionId: string, takeProfit: number | null, stopLoss: number | null) {
+    const result = await requestAccount({ action: "stops", positionId, takeProfit, stopLoss });
+    if (result) { setNotice("TP/SL updated for the selected position."); setActiveTab("positions"); }
   }
 
   async function submitJournal(
@@ -280,10 +288,8 @@ export function VirtualTradingWorkspace({
   const buyingPower = formatCurrency(
     account.wallet.balanceMinor / 100,
   );
-  const orderButtonLabel =
-    side === "buy" ? "Place virtual buy" : "Place virtual sell";
+  const orderButtonLabel = side === "buy" ? `Place ${environment} buy` : `Place ${environment} sell`;
   const canSubmit =
-    environment === "virtual" &&
     !busy &&
     quote !== null &&
     Number.isFinite(numericQuantity) &&
@@ -294,6 +300,8 @@ export function VirtualTradingWorkspace({
 
   return (
     <>
+      <AiAutoTrader environment={environment} plan={plan} onState={(next) => { setAccount(next); setActiveTab("positions"); setChartRefreshToken((value) => value + 1); }} />
+
       <section className="trade-environment-bar">
         <div>
           <span>Trading environment</span>
@@ -314,22 +322,22 @@ export function VirtualTradingWorkspace({
             </button>
             <button
               aria-describedby="real-environment-note"
-              aria-pressed={environment === "real"}
+              aria-pressed={environment === "current"}
               className={
-                environment === "real" ? "active real" : "real"
+                environment === "current" ? "active real" : "real"
               }
-              onClick={() => setEnvironment("real")}
+              onClick={() => { setOrderType("market"); setEnvironment("current"); }}
               type="button"
             >
-              Real
+              Current
             </button>
           </div>
         </div>
 
         <p id="real-environment-note">
           {environment === "virtual"
-            ? "Virtual orders use your separate simulated USD balance."
-            : "Real environment selected. Connect a broker account before real balances or order execution can be enabled."}
+            ? "Virtual orders use your separate Virtual Balance."
+            : "Current environment uses your system Current Balance. It has no external payment gateway or broker connection."}
         </p>
       </section>
 
@@ -341,19 +349,17 @@ export function VirtualTradingWorkspace({
             paperPillLabel={
               environment === "virtual"
                 ? "VIRTUAL"
-                : "REAL · NOT CONNECTED"
+                : "CURRENT"
             }
             refreshToken={chartRefreshToken}
             selectedKey={selectedKey}
             showLearningBalance={false}
             showWorkspaceTabs={false}
-            tradeOrders={
-              environment === "virtual" ? chartTradeOrders : []
-            }
+            tradeOrders={chartTradeOrders}
           />
         </div>
 
-        {environment === "virtual" ? (
+        {(
           <aside className="virtual-order-ticket">
           <div className="order-ticket-heading">
             <div>
@@ -365,7 +371,7 @@ export function VirtualTradingWorkspace({
           </div>
 
           <div className="virtual-balance-card">
-            <span>Available virtual USD</span>
+            <span>Available {environment === "virtual" ? "Virtual" : "Current"} USD</span>
             <strong>{buyingPower}</strong>
             <small>
               Reserved limit-buy funds are already excluded.
@@ -405,7 +411,7 @@ export function VirtualTradingWorkspace({
                 value={orderType}
               >
                 <option value="market">Market</option>
-                <option value="limit">Limit</option>
+                <option disabled={environment === "current"} value="limit">Limit{environment === "current" ? " (Virtual only)" : ""}</option>
               </select>
             </label>
 
@@ -443,6 +449,10 @@ export function VirtualTradingWorkspace({
                 />
               </label>
             )}
+            <div className="tp-sl-grid">
+              <label>Take profit (USD)<input inputMode="decimal" min="0.01" onChange={(event) => setTakeProfit(event.target.value)} placeholder="Optional" step="0.01" type="number" value={takeProfit} /></label>
+              <label>Stop loss (USD)<input inputMode="decimal" min="0.01" onChange={(event) => setStopLoss(event.target.value)} placeholder="Optional" step="0.01" type="number" value={stopLoss} /></label>
+            </div>
 
             <dl className="order-summary">
               <div>
@@ -465,7 +475,7 @@ export function VirtualTradingWorkspace({
                 <dt>Available to sell</dt>
                 <dd>
                   {formatQuantity(
-                    selectedPosition?.availableQuantity ?? 0,
+                    selectedPositions.reduce((total, position) => total + position.availableQuantity, 0),
                   )}{" "}
                   {assetCode(selectedKey)}
                 </dd>
@@ -494,66 +504,13 @@ export function VirtualTradingWorkspace({
           )}
 
           <p className="virtual-order-disclaimer">
-            Virtual execution only. Market orders use a server-fetched
-            provider price; limit orders are checked whenever live data
-            refreshes.
+            {environment === "virtual" ? "Virtual Balance" : "Current Balance"} execution. Market orders use a server-fetched provider price. Limit orders are currently available in Virtual only.
           </p>
-          </aside>
-        ) : (
-          <aside
-            aria-live="polite"
-            className="virtual-order-ticket real-account-panel"
-          >
-            <div className="order-ticket-heading">
-              <div>
-                <p className="eyebrow">REAL ENVIRONMENT</p>
-                <h2>Broker connection required</h2>
-              </div>
-              <span>Not connected</span>
-            </div>
-
-            <div className="real-account-status">
-              <span>Real USD balance</span>
-              <strong>Unavailable</strong>
-              <small>
-                Aegis will only show a real balance returned by an
-                authenticated broker or exchange account.
-              </small>
-            </div>
-
-            <dl className="order-summary">
-              <div>
-                <dt>Trading provider</dt>
-                <dd>Not configured</dd>
-              </div>
-              <div>
-                <dt>Order execution</dt>
-                <dd>Disabled</dd>
-              </div>
-              <div>
-                <dt>Market chart</dt>
-                <dd>Live reference data</dd>
-              </div>
-            </dl>
-
-            <p className="virtual-order-disclaimer">
-              Select the broker or exchange first. Real balances,
-              authentication, order rules, and execution APIs differ by
-              provider and cannot be safely guessed.
-            </p>
-
-            <button
-              className="button secondary real-return-button"
-              onClick={() => setEnvironment("virtual")}
-              type="button"
-            >
-              Return to Virtual
-            </button>
           </aside>
         )}
       </section>
 
-      {environment === "virtual" ? (
+      {(
         <section className="virtual-records">
         <div className="virtual-record-tabs" role="tablist">
           {recordTabs.map((tab) => (
@@ -591,8 +548,11 @@ export function VirtualTradingWorkspace({
           {activeTab === "positions" && (
             <PositionsTable
               busy={busy}
-              onClose={(marketSymbol) =>
-                void closePosition(marketSymbol)
+              onClose={(positionId, marketSymbol) =>
+                void closePosition(positionId, marketSymbol)
+              }
+              onUpdateStops={(positionId, takeProfit, stopLoss) =>
+                void updateStops(positionId, takeProfit, stopLoss)
               }
               positions={account.positions}
               quote={quote}
@@ -692,15 +652,6 @@ export function VirtualTradingWorkspace({
           )}
         </div>
         </section>
-      ) : (
-        <section className="virtual-records real-records-placeholder">
-          <div className="virtual-record-panel">
-            <EmptyRecords
-              description="Connect a supported broker or exchange before Aegis can retrieve real positions, orders, history, and account balance."
-              title="No real account connected"
-            />
-          </div>
-        </section>
       )}
     </>
   );
@@ -709,11 +660,13 @@ export function VirtualTradingWorkspace({
 function PositionsTable({
   busy,
   onClose,
+  onUpdateStops,
   positions,
   quote,
 }: {
   busy: boolean;
-  onClose: (marketSymbol: MarketKey) => void;
+  onClose: (positionId: string, marketSymbol: MarketKey) => void;
+  onUpdateStops: (positionId: string, takeProfit: number | null, stopLoss: number | null) => void;
   positions: VirtualTradingState["positions"];
   quote: LiveQuote | null;
 }) {
@@ -731,12 +684,15 @@ function PositionsTable({
       <table>
         <thead>
           <tr>
+            <th>Ticket</th>
             <th>Market</th>
+            <th>Side</th>
             <th>Quantity</th>
             <th>Available</th>
             <th>Average entry</th>
             <th>Current value</th>
             <th>Unrealized P/L</th>
+            <th>TP / SL</th>
             <th>Realized P/L</th>
             <th>Action</th>
           </tr>
@@ -751,13 +707,14 @@ function PositionsTable({
               ? currentPrice * position.quantity
               : null;
             const unrealized = currentPrice
-              ? (currentPrice - position.averageEntryPrice) *
-                position.quantity
+              ? (position.side === "buy" ? currentPrice - position.averageEntryPrice : position.averageEntryPrice - currentPrice) * position.quantity
               : null;
 
             return (
-              <tr key={position.marketSymbol}>
+              <tr key={position.id}>
+                <td>#{position.id.slice(0, 8)}</td>
                 <td>{formatMarket(position.marketSymbol)}</td>
+                <td className={position.side}>{position.side}</td>
                 <td>{formatQuantity(position.quantity)}</td>
                 <td>
                   {formatQuantity(position.availableQuantity)}
@@ -775,6 +732,7 @@ function PositionsTable({
                     ? "—"
                     : formatSignedCurrency(unrealized)}
                 </td>
+                <td><PositionStops position={position} busy={busy} onSave={onUpdateStops} /></td>
                 <td
                   className={pnlClass(
                     position.realizedPnlMinor / 100,
@@ -791,7 +749,7 @@ function PositionsTable({
                       busy || position.availableQuantity <= 0
                     }
                     onClick={() =>
-                      onClose(position.marketSymbol)
+                      onClose(position.id, position.marketSymbol)
                     }
                     type="button"
                   >
@@ -807,6 +765,12 @@ function PositionsTable({
       </table>
     </div>
   );
+}
+
+function PositionStops({ position, busy, onSave }: { position: VirtualTradingState["positions"][number]; busy: boolean; onSave: (id: string, tp: number | null, sl: number | null) => void }) {
+  const [tp, setTp] = useState(position.takeProfit?.toString() ?? "");
+  const [sl, setSl] = useState(position.stopLoss?.toString() ?? "");
+  return <div className="position-stops"><input aria-label="Take profit" placeholder="TP" step="0.01" type="number" value={tp} onChange={(e)=>setTp(e.target.value)} /><input aria-label="Stop loss" placeholder="SL" step="0.01" type="number" value={sl} onChange={(e)=>setSl(e.target.value)} /><button disabled={busy} type="button" onClick={()=>onSave(position.id,tp===""?null:Number(tp),sl===""?null:Number(sl))}>Save</button></div>;
 }
 
 function OrdersTable({

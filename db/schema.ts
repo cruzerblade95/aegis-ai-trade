@@ -137,7 +137,12 @@ export const plans = sqliteTable(
       .default(0),
 
     priceMinor: integer("price_minor").notNull().default(0),
+    yearlyPriceMinor: integer("yearly_price_minor").notNull().default(0),
     currency: text("currency").notNull().default("USD"),
+    strategyLevel: integer("strategy_level").notNull().default(1),
+    maxOpenPositions: integer("max_open_positions").notNull().default(1),
+    scanIntervalSeconds: integer("scan_interval_seconds").notNull().default(120),
+    riskPerTradeBps: integer("risk_per_trade_bps").notNull().default(50),
 
     isActive: integer("is_active", {
       mode: "boolean",
@@ -187,6 +192,8 @@ export const subscriptions = sqliteTable(
     endsAt: integer("ends_at", {
       mode: "timestamp_ms",
     }),
+
+    billingCycle: text("billing_cycle", { enum: ["monthly", "yearly"] }).notNull().default("monthly"),
 
     createdAt: createdAt(),
     updatedAt: updatedAt(),
@@ -599,3 +606,44 @@ export const adminAuditLogs = sqliteTable(
     ),
   ],
 );
+
+/** System-only USD wallet used by non-virtual trading environments. */
+export const currentWallets = sqliteTable(
+  "current_wallets",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+    currency: text("currency").notNull().default("USD"),
+    balanceMinor: integer("balance_minor").notNull().default(0),
+    createdAt: createdAt(),
+    updatedAt: updatedAt(),
+  },
+  (table) => [uniqueIndex("current_wallet_user_currency_unique").on(table.userId, table.currency)],
+);
+
+
+export const aiTradingSettings = sqliteTable("ai_trading_settings", {
+  userId: text("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  isEnabled: integer("is_enabled", { mode: "boolean" }).notNull().default(false),
+  environment: text("environment", { enum: ["virtual", "current"] }).notNull().default("virtual"),
+  preferredStrategy: text("preferred_strategy").notNull().default("auto"),
+  volume: text("volume").notNull().default("0.01"),
+  takeProfitBps: integer("take_profit_bps").notNull().default(90),
+  stopLossBps: integer("stop_loss_bps").notNull().default(50),
+  autoClose: integer("auto_close", { mode: "boolean" }).notNull().default(true),
+  lastScanAt: integer("last_scan_at", { mode: "timestamp_ms" }),
+  updatedAt: updatedAt(),
+});
+
+export const aiTradeDecisions = sqliteTable("ai_trade_decisions", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  environment: text("environment", { enum: ["virtual", "current"] }).notNull(),
+  marketSymbol: text("market_symbol").notNull(),
+  strategy: text("strategy").notNull(),
+  signal: text("signal").notNull(),
+  confidence: integer("confidence").notNull(),
+  reason: text("reason").notNull(),
+  positionId: text("position_id"),
+  createdAt: createdAt(),
+}, (table) => [index("ai_trade_decisions_user_created_idx").on(table.userId, table.createdAt)]);

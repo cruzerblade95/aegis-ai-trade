@@ -1,3 +1,7 @@
+## v0.5.0 AI Trading Plans
+
+Adds plan purchases using Current Balance, plan-aware AI strategy scans, dashboard plan status, and animated balance/card transitions. AI signals are simulated and do not guarantee profit. Run `drizzle/0010_ai_trading_plans.sql` and reseed plans.
+
 # Aegis AI Trade
 
 A premium educational market-learning platform with live reference
@@ -265,3 +269,27 @@ docs: update roadmap and release history for v0.2.0
 ## License
 
 No license has been selected yet. Add a license before accepting external contributions or distributing the source.
+
+## v0.4.0 chart position-line update
+
+- Open positions are plotted as MT5-style horizontal entry-price lines.
+- Closed positions are removed from the chart because chart data now comes only from the open positions collection.
+- Each ticket gets a compact label instead of a candle arrow with long text.
+- Take-profit and stop-loss levels are plotted as dashed lines while the position remains open.
+- Pending limit orders remain visible as dashed order-price lines.
+
+
+## v0.4.0 user trading dashboard
+- User navigation now contains only Dashboard and Trade.
+- Dashboard supports Current Balance and Virtual Balance views.
+- Dashboard includes realized, unrealized, and total P&L.
+- Virtual trades use Virtual Balance; Current environment market trades use Current Balance.
+- Current Balance remains internal to the system and has no payment-gateway or broker connection.
+
+## v0.5.1 — Persistent AI Auto Trade and plan billing
+
+- Plans page supports monthly and yearly purchases from Current Balance.
+- Pro and Elite monthly purchases expire after 30 days; yearly purchases expire after 365 days.
+- AI Auto Trade settings are stored in D1, including enabled state, environment, strategy, volume, TP, SL and strategy-based auto-close.
+- A Cloudflare scheduled trigger runs enabled AI traders every minute, including while users navigate away or close the Trade page.
+- Deploy `drizzle/0011_ai_billing_background_settings.sql`, rerun `db/seed.sql`, and deploy the Worker so the cron trigger becomes active.

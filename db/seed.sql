@@ -1,57 +1,6 @@
-INSERT INTO plans (
-  id,
-  code,
-  name,
-  description,
-  monthly_virtual_credits,
-  price_minor,
-  currency,
-  is_active,
-  created_at,
-  updated_at
-)
+INSERT INTO plans (id,code,name,description,monthly_virtual_credits,price_minor,yearly_price_minor,currency,is_active,strategy_level,max_open_positions,scan_interval_seconds,risk_per_trade_bps,created_at,updated_at)
 VALUES
-  (
-    'plan_explorer',
-    'explorer',
-    'Explorer',
-    'Core educational paper-trading tools and limited AI explanations.',
-    100,
-    0,
-    'USD',
-    1,
-    unixepoch() * 1000,
-    unixepoch() * 1000
-  ),
-  (
-    'plan_analyst',
-    'analyst',
-    'Analyst',
-    'Expanded educational AI explanations, risk scenarios, and journal insights.',
-    2500,
-    1900,
-    'USD',
-    1,
-    unixepoch() * 1000,
-    unixepoch() * 1000
-  ),
-  (
-    'plan_strategist',
-    'strategist',
-    'Strategist',
-    'Advanced portfolio simulations and personalized educational learning paths.',
-    10000,
-    4900,
-    'USD',
-    1,
-    unixepoch() * 1000,
-    unixepoch() * 1000
-  )
-ON CONFLICT(code) DO UPDATE SET
-  name = excluded.name,
-  description = excluded.description,
-  monthly_virtual_credits = excluded.monthly_virtual_credits,
-  price_minor = excluded.price_minor,
-  currency = excluded.currency,
-  is_active = excluded.is_active,
-  updated_at = excluded.updated_at;
+('plan_starter','starter','Starter AI','Core automated RSI and momentum scalping signals with conservative limits.',100,0,0,'USD',1,1,1,120,50,unixepoch()*1000,unixepoch()*1000),
+('plan_pro','pro','Pro AI','Faster RSI, Bollinger Band, momentum and trend-confirmation scans.',2500,2900,29000,'USD',1,2,3,60,75,unixepoch()*1000,unixepoch()*1000),
+('plan_elite','elite','Elite AI','Multi-strategy confirmation, volatility filtering, faster scans and expanded position capacity.',10000,7900,79000,'USD',1,3,6,60,100,unixepoch()*1000,unixepoch()*1000)
+ON CONFLICT(code) DO UPDATE SET name=excluded.name,description=excluded.description,monthly_virtual_credits=excluded.monthly_virtual_credits,price_minor=excluded.price_minor,yearly_price_minor=excluded.yearly_price_minor,currency=excluded.currency,is_active=excluded.is_active,strategy_level=excluded.strategy_level,max_open_positions=excluded.max_open_positions,scan_interval_seconds=excluded.scan_interval_seconds,risk_per_trade_bps=excluded.risk_per_trade_bps,updated_at=excluded.updated_at;

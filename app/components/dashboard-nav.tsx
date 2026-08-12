@@ -4,30 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 const navigation = [
-  {
-    href: "/dashboard",
-    label: "Overview",
-  },
-  {
-    href: "/market",
-    label: "Market Lab",
-  },
-  {
-    href: "/market-explorer",
-    label: "Explorer",
-  },
-  {
-    href: "/trade",
-    label: "Virtual Trade",
-  },
-  {
-    href: "/risk",
-    label: "Risk Lab",
-  },
-  {
-    href: "/progress",
-    label: "Progress",
-  },
+  { href: "/dashboard", label: "Dashboard" },
+  { href: "/trade", label: "Trade" },
+  { href: "/plans", label: "Plans" },
 ];
 
 export function DashboardNav() {
